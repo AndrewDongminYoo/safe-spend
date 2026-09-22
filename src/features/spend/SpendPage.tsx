@@ -44,10 +44,23 @@ export function SpendPage({
   }, [amountInput]);
   const exceedsCurrentBalance =
     state !== null && amount !== null && amount > state.currentBalance;
-  const preview =
-    state === null || amount === null || amount === 0 || exceedsCurrentBalance
-      ? null
-      : previewPurchase(state, today, amount);
+  const { preview, previewError } = useMemo(() => {
+    if (state === null || amount === null || amount === 0) {
+      return { preview: null, previewError: null };
+    }
+
+    try {
+      return {
+        preview: previewPurchase(state, today, amount),
+        previewError: null,
+      };
+    } catch {
+      return {
+        preview: null,
+        previewError: "계산할 수 있는 금액 범위를 넘었어요",
+      };
+    }
+  }, [amount, state, today]);
   const result =
     preview === null || preview.purchaseAmount <= preview.safeToSpend
       ? "within_safe_amount"
@@ -108,6 +121,7 @@ export function SpendPage({
       {exceedsCurrentBalance ? (
         <p role="alert">현재 잔액보다 큰 금액은 기록할 수 없어요</p>
       ) : null}
+      {previewError === null ? null : <p role="alert">{previewError}</p>}
       {preview === null ? null : (
         <section
           aria-label="지출 영향"

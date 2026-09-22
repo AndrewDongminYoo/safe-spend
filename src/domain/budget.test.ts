@@ -75,14 +75,14 @@ describe("calculateBudget", () => {
 });
 
 describe("previewPurchase", () => {
-  it("rejects an amount above the current balance", () => {
-    expect(() =>
+  it("previews an amount above the current balance", () => {
+    expect(
       previewPurchase(
-        makeState({ currentBalance: 10_000 }),
+        makeState({ currentBalance: 10_000, safetyReserve: 0 }),
         "2026-09-22",
         10_001,
       ),
-    ).toThrow("Purchase amount cannot exceed the current balance");
+    ).toMatchObject({ safeToSpendAfter: 0, shortfallAfter: 1 });
   });
 
   it("never emits Infinity when no money is safe", () => {

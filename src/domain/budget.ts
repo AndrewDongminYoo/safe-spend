@@ -68,11 +68,13 @@ export function previewPurchase(
   purchaseAmount: Won,
 ): PurchasePreview {
   const amount = assertWon(purchaseAmount);
-  if (amount > assertWon(state.currentBalance)) {
-    throw new Error("Purchase amount cannot exceed the current balance");
-  }
   const budget = calculateBudget(state, today);
   const rawSafeToSpendAfter = budget.rawSafeToSpend - amount;
+
+  if (!Number.isSafeInteger(rawSafeToSpendAfter)) {
+    throw new Error("Purchase preview exceeds the supported won range");
+  }
+
   const safeToSpendAfter = assertWon(Math.max(rawSafeToSpendAfter, 0));
   const shortfallAfter = assertWon(Math.max(-rawSafeToSpendAfter, 0));
 

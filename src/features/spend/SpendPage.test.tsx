@@ -88,6 +88,10 @@ describe("SpendPage", () => {
     expect(
       screen.getByText("현재 잔액보다 큰 금액은 기록할 수 없어요"),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("지출 영향")).toBeInTheDocument();
+    expect(
+      screen.getByText("써도 되는 돈보다 10,000원 많아요"),
+    ).toBeInTheDocument();
   });
 
   it("explains that zero is not a valid purchase and hides the preview", async () => {
@@ -112,5 +116,19 @@ describe("SpendPage", () => {
       "aria-live",
       "polite",
     );
+  });
+
+  it("reports an unsupported preview range without crashing", async () => {
+    const { user } = renderSpend(
+      makeState({ currentBalance: 0, safetyReserve: Number.MAX_SAFE_INTEGER }),
+    );
+    await screen.findByLabelText("지출 금액");
+
+    await user.type(screen.getByLabelText("지출 금액"), "1");
+
+    expect(
+      screen.getByText("계산할 수 있는 금액 범위를 넘었어요"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("지출 영향")).not.toBeInTheDocument();
   });
 });
