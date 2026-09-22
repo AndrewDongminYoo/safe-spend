@@ -23,6 +23,8 @@ export interface AppStoreValue {
   ): Promise<boolean>;
   initialize(state: SafeSpendStateV1): Promise<boolean>;
   retrySave(): Promise<boolean>;
+  retryLoad(): Promise<void>;
+  continueWithoutStorage(): void;
   resetAfterConfirmation(): Promise<boolean>;
 }
 
@@ -52,6 +54,15 @@ export function AppStoreProvider({
     setState(nextState);
   }, []);
 
+  const applyLoadResult = useCallback(
+    (result: Awaited<ReturnType<StateRepository["load"]>>) => {
+      setLoadState(result.kind);
+      setCorruptRaw(result.kind === "corrupt" ? result.raw : null);
+      updateState(result.kind === "ready" ? result.state : null);
+    },
+    [updateState],
+  );
+
   useEffect(() => {
     let isActive = true;
 
@@ -60,19 +71,24 @@ export function AppStoreProvider({
         return;
       }
 
-      setLoadState(result.kind);
-
-      if (result.kind === "ready") {
-        updateState(result.state);
-      } else if (result.kind === "corrupt") {
-        setCorruptRaw(result.raw);
-      }
+      applyLoadResult(result);
     });
 
     return () => {
       isActive = false;
     };
-  }, [repository, updateState]);
+  }, [applyLoadResult, repository]);
+
+  const retryLoad = useCallback(async (): Promise<void> => {
+    setLoadState("loading");
+    applyLoadResult(await repository.load());
+  }, [applyLoadResult, repository]);
+
+  const continueWithoutStorage = useCallback(() => {
+    updateState(null);
+    setCorruptRaw(null);
+    setLoadState("empty");
+  }, [updateState]);
 
   const persistSnapshot = useCallback(
     async (snapshot: SafeSpendStateV1): Promise<boolean> => {
@@ -182,6 +198,8 @@ export function AppStoreProvider({
       mutate,
       initialize,
       retrySave,
+      retryLoad,
+      continueWithoutStorage,
       resetAfterConfirmation,
     }),
     [
@@ -193,6 +211,8 @@ export function AppStoreProvider({
       persistenceError,
       resetAfterConfirmation,
       retrySave,
+      retryLoad,
+      continueWithoutStorage,
       state,
     ],
   );

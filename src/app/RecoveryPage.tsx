@@ -9,15 +9,29 @@ interface RecoveryPageProps {
 }
 
 export function RecoveryPage({ kind }: RecoveryPageProps) {
-  const { resetAfterConfirmation } = useAppStore();
+  const { continueWithoutStorage, resetAfterConfirmation, retryLoad } =
+    useAppStore();
   const [isConfirming, setIsConfirming] = useState(false);
 
   if (kind === "unavailable") {
     return (
       <PageScaffold
         title="저장소에 연결하지 못했어요"
-        subtitle="토스 앱을 다시 열어 주세요. 데이터는 초기화하지 않았어요."
-      />
+        subtitle="다시 연결하거나, 이번 세션에서만 저장 없이 시작할 수 있어요."
+      >
+        <div style={{ display: "grid", gap: 8 }}>
+          <Button display="block" onClick={() => void retryLoad()}>
+            다시 시도하기
+          </Button>
+          <Button
+            display="block"
+            variant="weak"
+            onClick={continueWithoutStorage}
+          >
+            저장 없이 시작하기
+          </Button>
+        </div>
+      </PageScaffold>
     );
   }
 

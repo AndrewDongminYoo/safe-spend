@@ -20,14 +20,14 @@ function makeRepository(
   };
 }
 
-function renderAppAt(repository: StateRepository) {
+function renderAppAt(repository: StateRepository, path = "/") {
   render(
     <TDSMobileAITProvider brandPrimaryColor="#3182F6">
       <AppStoreProvider
         repository={repository}
         now={() => "2026-09-22T00:00:00.000Z"}
       >
-        <RouterProvider router={createAppRouter(["/"])} />
+        <RouterProvider router={createAppRouter([path])} />
       </AppStoreProvider>
     </TDSMobileAITProvider>,
   );
@@ -58,6 +58,68 @@ describe("startup routing", () => {
     renderAppAt(makeRepository({ kind: "ready", state: makeState() }));
     expect(
       await screen.findByText("다음 수입일까지 써도 되는 돈"),
+    ).toBeInTheDocument();
+  });
+
+  it.each(["/spend", "/expenses", "/settings"])(
+    "redirects an empty deep link from %s to onboarding",
+    async (path) => {
+      renderAppAt(makeRepository({ kind: "empty" }), path);
+
+      expect(
+        await screen.findByText("계좌 연결 없이 시작해요"),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(["/spend", "/expenses", "/settings", "/onboarding"])(
+    "shows corrupt-state recovery at %s without overwriting data",
+    async (path) => {
+      const repository = makeRepository({
+        kind: "corrupt",
+        raw: "broken",
+        reason: "invalid JSON",
+      });
+      renderAppAt(repository, path);
+
+      expect(
+        await screen.findByText("저장된 데이터를 읽지 못했어요"),
+      ).toBeInTheDocument();
+      expect(repository.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retries unavailable storage and resumes the requested deep link", async () => {
+    const repository = makeRepository({
+      kind: "unavailable",
+      reason: "bridge offline",
+    });
+    vi.mocked(repository.load)
+      .mockResolvedValueOnce({ kind: "unavailable", reason: "bridge offline" })
+      .mockResolvedValueOnce({ kind: "ready", state: makeState() });
+    const user = userEvent.setup();
+    renderAppAt(repository, "/spend");
+
+    await screen.findByText("저장소에 연결하지 못했어요");
+    await user.click(screen.getByRole("button", { name: "다시 시도하기" }));
+
+    expect(await screen.findByLabelText("지출 금액")).toBeInTheDocument();
+    expect(repository.load).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows session-only onboarding when storage is unavailable", async () => {
+    const user = userEvent.setup();
+    renderAppAt(
+      makeRepository({ kind: "unavailable", reason: "bridge offline" }),
+    );
+
+    await screen.findByText("저장소에 연결하지 못했어요");
+    await user.click(
+      screen.getByRole("button", { name: "저장 없이 시작하기" }),
+    );
+
+    expect(
+      await screen.findByText("계좌 연결 없이 시작해요"),
     ).toBeInTheDocument();
   });
 

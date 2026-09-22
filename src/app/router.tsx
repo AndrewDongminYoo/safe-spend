@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import type { ReactNode } from "react";
 import {
   createBrowserRouter,
   createMemoryRouter,
@@ -16,7 +17,7 @@ import { useAppStore } from "./app-store";
 import { LoadingPage } from "./LoadingPage";
 import { RecoveryPage } from "./RecoveryPage";
 
-function RootRoute() {
+function ReadyRoute({ children }: { children: ReactNode }) {
   const { loadState, state } = useAppStore();
 
   if (loadState === "loading") {
@@ -35,7 +36,7 @@ function RootRoute() {
     return <Navigate to="/onboarding" replace />;
   }
 
-  return <HomePage />;
+  return children;
 }
 
 function OnboardingRoute() {
@@ -43,6 +44,14 @@ function OnboardingRoute() {
 
   if (loadState === "loading") {
     return <LoadingPage />;
+  }
+
+  if (loadState === "corrupt") {
+    return <RecoveryPage kind="corrupt" />;
+  }
+
+  if (loadState === "unavailable") {
+    return <RecoveryPage kind="unavailable" />;
   }
 
   if (loadState === "ready" && state !== null) {
@@ -56,11 +65,39 @@ const routes: RouteObject[] = [
   {
     element: <AppShell />,
     children: [
-      { path: "/", element: <RootRoute /> },
+      {
+        path: "/",
+        element: (
+          <ReadyRoute>
+            <HomePage />
+          </ReadyRoute>
+        ),
+      },
       { path: "/onboarding", element: <OnboardingRoute /> },
-      { path: "/spend", element: <SpendPage /> },
-      { path: "/expenses", element: <ExpensesPage /> },
-      { path: "/settings", element: <SettingsPage /> },
+      {
+        path: "/spend",
+        element: (
+          <ReadyRoute>
+            <SpendPage />
+          </ReadyRoute>
+        ),
+      },
+      {
+        path: "/expenses",
+        element: (
+          <ReadyRoute>
+            <ExpensesPage />
+          </ReadyRoute>
+        ),
+      },
+      {
+        path: "/settings",
+        element: (
+          <ReadyRoute>
+            <SettingsPage />
+          </ReadyRoute>
+        ),
+      },
     ],
   },
 ];
