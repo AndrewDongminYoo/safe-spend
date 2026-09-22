@@ -8,6 +8,7 @@ import {
 
 import { HomePage } from "../features/home/HomePage";
 import { OnboardingPage } from "../features/onboarding/OnboardingPage";
+import { SpendPage } from "../features/spend/SpendPage";
 import { AppShell } from "./AppShell";
 import { useAppStore } from "./app-store";
 import { LoadingPage } from "./LoadingPage";
@@ -55,6 +56,7 @@ const routes: RouteObject[] = [
     children: [
       { path: "/", element: <RootRoute /> },
       { path: "/onboarding", element: <OnboardingRoute /> },
+      { path: "/spend", element: <SpendPage /> },
     ],
   },
 ];

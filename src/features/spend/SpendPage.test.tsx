@@ -1,0 +1,89 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { TDSMobileAITProvider } from "@toss/tds-mobile-ait";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+
+import { AppStoreProvider } from "../../app/app-store";
+import { makeState, makeStateWithPendingExpense } from "../../domain/fixtures";
+import type { DomainServices, SafeSpendStateV1 } from "../../domain/model";
+import type { StateRepository } from "../../storage/state-repository";
+import { SpendPage } from "./SpendPage";
+
+function renderSpend(state: SafeSpendStateV1) {
+  const repository: StateRepository = {
+    load: vi.fn().mockResolvedValue({ kind: "ready", state }),
+    save: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn().mockResolvedValue(undefined),
+  };
+  const domainServices: DomainServices = {
+    createId: () => "purchase-id",
+    now: () => "2026-09-22T00:00:00.000Z",
+  };
+
+  render(
+    <TDSMobileAITProvider brandPrimaryColor="#3182F6">
+      <AppStoreProvider repository={repository}>
+        <MemoryRouter>
+          <SpendPage today="2026-09-22" domainServices={domainServices} />
+        </MemoryRouter>
+      </AppStoreProvider>
+    </TDSMobileAITProvider>,
+  );
+
+  return { repository, user: userEvent.setup() };
+}
+
+describe("SpendPage", () => {
+  it("previews without mutating state", async () => {
+    const { repository, user } = renderSpend(
+      makeStateWithPendingExpense(250_000),
+    );
+    await screen.findByLabelText("지출 금액");
+
+    await user.type(screen.getByLabelText("지출 금액"), "65,000");
+
+    expect(screen.getByText("써도 되는 돈의 10.0%")).toBeInTheDocument();
+    expect(screen.getByText("지출 후 585,000원")).toBeInTheDocument();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it("records only after the explicit action", async () => {
+    const { repository, user } = renderSpend(
+      makeStateWithPendingExpense(250_000),
+    );
+    await screen.findByLabelText("지출 금액");
+    await user.type(screen.getByLabelText("지출 금액"), "65,000");
+
+    await user.click(screen.getByRole("button", { name: "지출로 기록하기" }));
+
+    expect(repository.save).toHaveBeenCalledTimes(1);
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ currentBalance: 935_000 }),
+    );
+  });
+
+  it("warns when a purchase exceeds the safe amount", async () => {
+    const { user } = renderSpend(makeStateWithPendingExpense(250_000));
+    await screen.findByLabelText("지출 금액");
+
+    await user.type(screen.getByLabelText("지출 금액"), "700,000");
+
+    expect(
+      screen.getByText("써도 되는 돈보다 50,000원 많아요"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not record a purchase above the current balance", async () => {
+    const { user } = renderSpend(
+      makeState({ currentBalance: 50_000, safetyReserve: 0 }),
+    );
+    await screen.findByLabelText("지출 금액");
+
+    await user.type(screen.getByLabelText("지출 금액"), "60,000");
+
+    expect(
+      screen.getByRole("button", { name: "지출로 기록하기" }),
+    ).toBeDisabled();
+  });
+});

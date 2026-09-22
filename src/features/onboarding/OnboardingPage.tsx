@@ -2,6 +2,7 @@ import { Badge, Button, ListRow, TextField } from "@toss/tds-mobile";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { trackProductEvent } from "../../analytics/product-events";
 import { useAppStore } from "../../app/app-store";
 import { PageScaffold } from "../../components/PageScaffold";
 import { WonTextField } from "../../components/WonTextField";
@@ -121,6 +122,10 @@ export function OnboardingPage({
     );
 
     if (await initialize(nextState)) {
+      trackProductEvent({
+        name: "onboarding_completed",
+        properties: { hasRecurringExpense: recurringExpenses.length > 0 },
+      });
       void navigate("/");
     }
   };
