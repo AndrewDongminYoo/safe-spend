@@ -6,8 +6,10 @@ import {
   type RouteObject,
 } from "react-router-dom";
 
+import { ExpensesPage } from "../features/expenses/ExpensesPage";
 import { HomePage } from "../features/home/HomePage";
 import { OnboardingPage } from "../features/onboarding/OnboardingPage";
+import { SettingsPage } from "../features/settings/SettingsPage";
 import { SpendPage } from "../features/spend/SpendPage";
 import { AppShell } from "./AppShell";
 import { useAppStore } from "./app-store";
@@ -57,6 +59,8 @@ const routes: RouteObject[] = [
       { path: "/", element: <RootRoute /> },
       { path: "/onboarding", element: <OnboardingRoute /> },
       { path: "/spend", element: <SpendPage /> },
+      { path: "/expenses", element: <ExpensesPage /> },
+      { path: "/settings", element: <SettingsPage /> },
     ],
   },
 ];
