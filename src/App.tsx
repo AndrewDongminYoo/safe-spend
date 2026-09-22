@@ -1,21 +1,32 @@
-import { Top } from "@toss/tds-mobile";
+import { useState } from "react";
+import { RouterProvider } from "react-router-dom";
 
-function App() {
+import { AppStoreProvider } from "./app/app-store";
+import { createAppRouter } from "./app/router";
+import {
+  appsInTossStateRepository,
+  type StateRepository,
+} from "./storage/state-repository";
+
+interface AppProps {
+  repository?: StateRepository;
+  now?: () => string;
+}
+
+function systemNow(): string {
+  return new Date().toISOString();
+}
+
+function App({
+  repository = appsInTossStateRepository,
+  now = systemNow,
+}: AppProps) {
+  const [router] = useState(createAppRouter);
+
   return (
-    <>
-      <Top
-        title={
-          <Top.TitleParagraph size={22}>
-            다음 수입일까지 써도 되는 돈
-          </Top.TitleParagraph>
-        }
-        subtitleBottom={
-          <Top.SubtitleParagraph size={17}>
-            고정지출을 먼저 빼고, 오늘의 여유를 확인해요.
-          </Top.SubtitleParagraph>
-        }
-      />
-    </>
+    <AppStoreProvider repository={repository} now={now}>
+      <RouterProvider router={router} />
+    </AppStoreProvider>
   );
 }
 
