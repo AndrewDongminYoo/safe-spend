@@ -235,6 +235,27 @@ export function markOccurrenceSkipped(
   };
 }
 
+export function postponePendingOccurrence(
+  state: SafeSpendStateV1,
+  occurrenceId: string,
+  dueDate: LocalDate,
+): SafeSpendStateV1 {
+  const occurrence = findPendingOccurrence(state, occurrenceId);
+  const postponedDueDate = assertLocalDate(dueDate);
+
+  if (compareLocalDates(postponedDueDate, occurrence.dueDate) <= 0) {
+    throw new Error("Postponed date must be after the current due date");
+  }
+
+  return withValidProtectedAmount({
+    ...state,
+    occurrences: replaceOccurrence(state, {
+      ...occurrence,
+      dueDate: postponedDueDate,
+    }),
+  });
+}
+
 export function revertOccurrence(
   state: SafeSpendStateV1,
   occurrenceId: string,

@@ -19,6 +19,7 @@ import {
   editPendingOccurrence,
   markOccurrencePaid,
   markOccurrenceSkipped,
+  postponePendingOccurrence,
   revertOccurrence,
   updateRecurringExpense,
 } from "../../domain/transitions";
@@ -32,6 +33,7 @@ interface ExpensesPageProps {
 type EditorState =
   | { kind: "none" }
   | { kind: "pay"; occurrence: ExpenseOccurrence }
+  | { kind: "postpone"; occurrence: ExpenseOccurrence }
   | { kind: "occurrence"; occurrence: ExpenseOccurrence }
   | { kind: "add-definition" }
   | { kind: "definition"; expense: RecurringExpense };
@@ -45,6 +47,12 @@ function getTodayInKorea(): string {
   }).format(new Date());
 }
 
+function getNextLocalDate(value: string): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 const statusOrder = { pending: 0, paid: 1, skipped: 1 } as const;
 
 export function ExpensesPage({
@@ -55,6 +63,8 @@ export function ExpensesPage({
   const [editor, setEditor] = useState<EditorState>({ kind: "none" });
   const [actualAmount, setActualAmount] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [postponeDate, setPostponeDate] = useState("");
+  const [postponeError, setPostponeError] = useState<string | null>(null);
 
   if (state === null) {
     return null;
@@ -72,6 +82,12 @@ export function ExpensesPage({
     setActualAmount(formatWon(occurrence.estimatedAmount));
     setPaymentError(null);
     setEditor({ kind: "pay", occurrence });
+  };
+
+  const openPostpone = (occurrence: ExpenseOccurrence) => {
+    setPostponeDate(occurrence.dueDate);
+    setPostponeError(null);
+    setEditor({ kind: "postpone", occurrence });
   };
 
   const pay = async () => {
@@ -117,6 +133,29 @@ export function ExpensesPage({
     }
   };
 
+  const postpone = async () => {
+    if (editor.kind !== "postpone") {
+      return;
+    }
+
+    try {
+      setPostponeError(null);
+      if (
+        await mutate((current) =>
+          postponePendingOccurrence(
+            current,
+            editor.occurrence.id,
+            postponeDate,
+          ),
+        )
+      ) {
+        setEditor({ kind: "none" });
+      }
+    } catch {
+      setPostponeError("기존 예정일보다 뒤의 날짜를 선택해 주세요");
+    }
+  };
+
   const saveDefinition = async (value: ExpenseEditorValue) => {
     if (value.dueDay === undefined) {
       return;
@@ -155,100 +194,126 @@ export function ExpensesPage({
   return (
     <PageScaffold
       title="고정지출"
-      subtitle="이번 주기의 예정, 납부, 건너뛴 내역이에요."
+      subtitle="예정된 지출과 납부하거나 건너뛴 내역을 확인해요."
     >
-      <section aria-label="이번 주기">
-        <ul style={{ listStyle: "none", margin: "0 -24px", padding: 0 }}>
-          {occurrences.map((occurrence) => (
-            <ListRow
-              key={occurrence.id}
-              data-testid="expense-row"
-              verticalPadding="large"
-              contents={
-                <ListRow.Texts
-                  type="2RowTypeA"
-                  top={occurrence.name}
-                  bottom={`${occurrence.dueDate} · ${formatWon(
-                    occurrence.actualAmount ?? occurrence.estimatedAmount,
-                  )}원`}
-                />
-              }
-              right={
-                <Badge
-                  size="small"
-                  variant="weak"
-                  color={
-                    occurrence.status === "paid"
-                      ? "green"
-                      : occurrence.status === "skipped"
-                        ? "elephant"
-                        : "blue"
+      <section aria-label="고정지출 내역">
+        {occurrences.length === 0 ? (
+          <p style={{ margin: "8px 0 0", color: "#6b7684" }}>
+            예정된 고정지출이 없어요.
+          </p>
+        ) : (
+          occurrences.map((occurrence) => (
+            <div key={occurrence.id} style={{ margin: "0 -24px 12px" }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                <ListRow
+                  data-testid="expense-row"
+                  verticalPadding="large"
+                  contents={
+                    <ListRow.Texts
+                      type="2RowTypeA"
+                      top={occurrence.name}
+                      bottom={`${occurrence.dueDate} · ${formatWon(
+                        occurrence.actualAmount ?? occurrence.estimatedAmount,
+                      )}원`}
+                    />
+                  }
+                  right={
+                    <Badge
+                      size="small"
+                      variant="weak"
+                      color={
+                        occurrence.status === "paid"
+                          ? "green"
+                          : occurrence.status === "skipped"
+                            ? "elephant"
+                            : "blue"
+                      }
+                    >
+                      {occurrence.status === "paid"
+                        ? "납부 완료"
+                        : occurrence.status === "skipped"
+                          ? "건너뜀"
+                          : "예정"}
+                    </Badge>
                   }
                 >
-                  {occurrence.status === "paid"
-                    ? "납부 완료"
-                    : occurrence.status === "skipped"
-                      ? "건너뜀"
-                      : "예정"}
-                </Badge>
-              }
-            >
-              {null}
-            </ListRow>
-          ))}
-        </ul>
-        {occurrences.map((occurrence) => (
-          <div
-            key={`${occurrence.id}-actions`}
-            style={{ display: "flex", gap: 6, margin: "8px 0" }}
-          >
-            {occurrence.status === "pending" ? (
-              <>
-                <Button
-                  size="small"
-                  variant="weak"
-                  disabled={isSaving}
-                  onClick={() => openPayment(occurrence)}
-                >
-                  {occurrence.name} 납부 처리
-                </Button>
-                <Button
-                  size="small"
-                  variant="weak"
-                  disabled={isSaving}
-                  onClick={() =>
-                    void mutate((current) =>
-                      markOccurrenceSkipped(current, occurrence.id),
-                    )
-                  }
-                >
-                  {occurrence.name} 건너뛰기
-                </Button>
-                <Button
-                  size="small"
-                  variant="weak"
-                  disabled={isSaving}
-                  onClick={() => setEditor({ kind: "occurrence", occurrence })}
-                >
-                  {occurrence.name} 이번 일정 수정
-                </Button>
-              </>
-            ) : (
-              <Button
-                size="small"
-                variant="weak"
-                disabled={isSaving}
-                onClick={() =>
-                  void mutate((current) =>
-                    revertOccurrence(current, occurrence.id),
-                  )
-                }
+                  {null}
+                </ListRow>
+              </ul>
+              <div
+                aria-label={`${occurrence.name} 관리`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 8,
+                  padding: "0 24px 12px",
+                }}
               >
-                {occurrence.name} 되돌리기
-              </Button>
-            )}
-          </div>
-        ))}
+                {occurrence.status === "pending" ? (
+                  <>
+                    <Button
+                      aria-label={`${occurrence.name} 납부 처리`}
+                      variant="weak"
+                      disabled={isSaving}
+                      style={{ gridColumn: "1 / -1" }}
+                      onClick={() => openPayment(occurrence)}
+                    >
+                      납부 처리
+                    </Button>
+                    <Button
+                      aria-label={`${occurrence.name} 건너뛰기`}
+                      size="small"
+                      variant="weak"
+                      disabled={isSaving}
+                      onClick={() =>
+                        void mutate((current) =>
+                          markOccurrenceSkipped(current, occurrence.id),
+                        )
+                      }
+                    >
+                      건너뛰기
+                    </Button>
+                    <Button
+                      aria-label={`${occurrence.name} 미루기`}
+                      size="small"
+                      variant="weak"
+                      disabled={isSaving}
+                      onClick={() => openPostpone(occurrence)}
+                    >
+                      미루기
+                    </Button>
+                    <Button
+                      aria-label={`${occurrence.name} 이번 일정 수정`}
+                      size="small"
+                      variant="weak"
+                      disabled={isSaving}
+                      onClick={() =>
+                        setEditor({ kind: "occurrence", occurrence })
+                      }
+                    >
+                      일정 수정
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    aria-label={`${occurrence.name} 되돌리기`}
+                    variant="weak"
+                    display="block"
+                    disabled={isSaving}
+                    style={{ gridColumn: "1 / -1" }}
+                    onClick={() =>
+                      void mutate((current) =>
+                        revertOccurrence(current, occurrence.id),
+                      )
+                    }
+                  >
+                    되돌리기
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </section>
 
       {editor.kind === "pay" ? (
@@ -282,6 +347,48 @@ export function ExpensesPage({
         </section>
       ) : null}
 
+      {editor.kind === "postpone" ? (
+        <section
+          aria-label={`${editor.occurrence.name} 미루기`}
+          style={{ display: "grid", gap: 12, margin: "24px 0" }}
+        >
+          <h2 style={{ margin: 0 }}>{editor.occurrence.name} 미루기</h2>
+          <label style={{ display: "grid", gap: 8 }}>
+            <span>새 예정일</span>
+            <input
+              aria-label="새 예정일"
+              type="date"
+              min={getNextLocalDate(editor.occurrence.dueDate)}
+              value={postponeDate}
+              onChange={(event) => {
+                setPostponeDate(event.currentTarget.value);
+                setPostponeError(null);
+              }}
+              style={{ minHeight: 56, padding: "0 16px", font: "inherit" }}
+            />
+          </label>
+          {postponeError === null ? null : (
+            <p role="alert" style={{ margin: 0 }}>
+              {postponeError}
+            </p>
+          )}
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+          >
+            <Button
+              variant="weak"
+              disabled={isSaving}
+              onClick={() => setEditor({ kind: "none" })}
+            >
+              취소
+            </Button>
+            <Button disabled={isSaving} onClick={() => void postpone()}>
+              이 날짜로 미루기
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
       {editor.kind === "occurrence" ? (
         <ExpenseEditor
           initial={{
@@ -299,50 +406,58 @@ export function ExpensesPage({
 
       <section aria-label="반복 설정" style={{ marginTop: 32 }}>
         <h2>반복 설정</h2>
-        <ul style={{ listStyle: "none", margin: "0 -24px", padding: 0 }}>
+        <div style={{ margin: "0 -24px" }}>
           {state.recurringExpenses.map((expense) => (
-            <ListRow
-              key={expense.id}
-              contents={`${expense.name} · 매월 ${expense.dueDay}일`}
-              right={
-                <Badge
-                  size="small"
-                  variant="weak"
-                  color={expense.isActive ? "blue" : "elephant"}
+            <div key={expense.id} style={{ marginBottom: 12 }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                <ListRow
+                  contents={`${expense.name} · 매월 ${expense.dueDay}일`}
+                  right={
+                    <Badge
+                      size="small"
+                      variant="weak"
+                      color={expense.isActive ? "blue" : "elephant"}
+                    >
+                      {expense.isActive ? "사용 중" : "사용 중지"}
+                    </Badge>
+                  }
+                />
+              </ul>
+              {expense.isActive ? (
+                <div
+                  aria-label={`${expense.name} 반복 관리`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    padding: "0 24px 12px",
+                  }}
                 >
-                  {expense.isActive ? "사용 중" : "사용 중지"}
-                </Badge>
-              }
-            />
-          ))}
-        </ul>
-        {state.recurringExpenses
-          .filter(({ isActive }) => isActive)
-          .map((expense) => (
-            <div
-              key={`${expense.id}-definition-actions`}
-              style={{ display: "flex", gap: 8 }}
-            >
-              <Button
-                size="small"
-                variant="weak"
-                onClick={() => setEditor({ kind: "definition", expense })}
-              >
-                {expense.name} 반복 수정
-              </Button>
-              <Button
-                size="small"
-                variant="weak"
-                onClick={() =>
-                  void mutate((current) =>
-                    deactivateRecurringExpense(current, expense.id),
-                  )
-                }
-              >
-                {expense.name} 반복 중지
-              </Button>
+                  <Button
+                    aria-label={`${expense.name} 반복 수정`}
+                    size="small"
+                    variant="weak"
+                    onClick={() => setEditor({ kind: "definition", expense })}
+                  >
+                    수정
+                  </Button>
+                  <Button
+                    aria-label={`${expense.name} 반복 중지`}
+                    size="small"
+                    variant="weak"
+                    onClick={() =>
+                      void mutate((current) =>
+                        deactivateRecurringExpense(current, expense.id),
+                      )
+                    }
+                  >
+                    사용 중지
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ))}
+        </div>
         <Button
           variant="weak"
           display="block"

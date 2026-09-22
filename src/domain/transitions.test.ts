@@ -15,6 +15,7 @@ import {
   editPendingOccurrence,
   markOccurrencePaid,
   markOccurrenceSkipped,
+  postponePendingOccurrence,
   recordPurchase,
   renewCycle,
   revertOccurrence,
@@ -177,6 +178,46 @@ describe("expense occurrence transitions", () => {
         "expense-occurrence",
         { name: "보험료", dueDate: "2026-09-27", estimatedAmount: 260_000 },
       ),
+    ).toThrow("pending occurrence");
+  });
+
+  it("postpones a pending occurrence without changing its other fields", () => {
+    const before = makeStateWithPendingExpense(250_000);
+    const postponed = postponePendingOccurrence(
+      before,
+      "expense-occurrence",
+      "2026-10-02",
+    );
+
+    expect(postponed.currentBalance).toBe(before.currentBalance);
+    expect(postponed.occurrences[0]).toEqual({
+      ...before.occurrences[0],
+      dueDate: "2026-10-02",
+    });
+    expect(calculateBudget(postponed, "2026-09-22").reservedAmount).toBe(0);
+  });
+
+  it.each(["2026-09-25", "2026-09-24"])(
+    "rejects postponing to a non-later date: %s",
+    (dueDate) => {
+      expect(() =>
+        postponePendingOccurrence(
+          makeStateWithPendingExpense(250_000),
+          "expense-occurrence",
+          dueDate,
+        ),
+      ).toThrow("after the current due date");
+    },
+  );
+
+  it("rejects postponing a completed occurrence", () => {
+    const skipped = markOccurrenceSkipped(
+      makeStateWithPendingExpense(250_000),
+      "expense-occurrence",
+    );
+
+    expect(() =>
+      postponePendingOccurrence(skipped, "expense-occurrence", "2026-10-02"),
     ).toThrow("pending occurrence");
   });
 });

@@ -42,6 +42,14 @@ function renderExpenses(
 }
 
 describe("ExpensesPage", () => {
+  it("explains when the current cycle has no expense occurrences", async () => {
+    renderExpenses(makeState());
+
+    expect(
+      await screen.findByText("예정된 고정지출이 없어요."),
+    ).toBeInTheDocument();
+  });
+
   it("orders pending expenses by date before completed entries", async () => {
     renderExpenses(
       makeState({
@@ -81,6 +89,87 @@ describe("ExpensesPage", () => {
     await user.click(screen.getByRole("button", { name: "보험료 납부 처리" }));
 
     expect(screen.getByLabelText("실제 출금액")).toHaveValue("250,000");
+  });
+
+  it("keeps full action names accessible without repeating them visually", async () => {
+    renderExpenses(makeStateWithPendingExpense(250_000));
+    await screen.findByText("보험료");
+
+    const payment = screen.getByRole("button", {
+      name: "보험료 납부 처리",
+    });
+    const skip = screen.getByRole("button", { name: "보험료 건너뛰기" });
+    const postpone = screen.getByRole("button", { name: "보험료 미루기" });
+    const edit = screen.getByRole("button", {
+      name: "보험료 이번 일정 수정",
+    });
+
+    expect(payment).toHaveTextContent("납부 처리");
+    expect(payment).not.toHaveTextContent("보험료");
+    expect(skip).toHaveTextContent("건너뛰기");
+    expect(postpone).toHaveTextContent("미루기");
+    expect(edit).toHaveTextContent("일정 수정");
+  });
+
+  it("postpones a pending occurrence to the selected date", async () => {
+    const { repository, user } = renderExpenses(
+      makeStateWithPendingExpense(250_000),
+    );
+    await screen.findByText("보험료");
+
+    await user.click(screen.getByRole("button", { name: "보험료 미루기" }));
+    const dueDate = screen.getByLabelText("새 예정일");
+    expect(dueDate).toHaveValue("2026-09-25");
+    expect(dueDate).toHaveAttribute("min", "2026-09-26");
+    await user.clear(dueDate);
+    await user.type(dueDate, "2026-10-02");
+    await user.click(screen.getByRole("button", { name: "이 날짜로 미루기" }));
+
+    expect(repository.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        occurrences: [expect.objectContaining({ dueDate: "2026-10-02" })],
+      }),
+    );
+  });
+
+  it("keeps the postpone editor open for a non-later date", async () => {
+    const { repository, user } = renderExpenses(
+      makeStateWithPendingExpense(250_000),
+    );
+    await screen.findByText("보험료");
+
+    await user.click(screen.getByRole("button", { name: "보험료 미루기" }));
+    await user.click(screen.getByRole("button", { name: "이 날짜로 미루기" }));
+
+    expect(
+      screen.getByText("기존 예정일보다 뒤의 날짜를 선택해 주세요"),
+    ).toBeInTheDocument();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it("keeps recurring action names accessible without repeating them visually", async () => {
+    renderExpenses(
+      makeState({
+        recurringExpenses: [
+          {
+            id: "recurring-expense",
+            name: "보험료",
+            estimatedAmount: 250_000,
+            dueDay: 25,
+            isActive: true,
+          },
+        ],
+      }),
+    );
+
+    const edit = await screen.findByRole("button", {
+      name: "보험료 반복 수정",
+    });
+    const stop = screen.getByRole("button", { name: "보험료 반복 중지" });
+
+    expect(edit).toHaveTextContent("수정");
+    expect(edit).not.toHaveTextContent("보험료");
+    expect(stop).toHaveTextContent("사용 중지");
   });
 
   it("creates a current-cycle occurrence when an edited due day enters the horizon", async () => {
