@@ -123,6 +123,33 @@ describe("startup routing", () => {
     ).toBeInTheDocument();
   });
 
+  it("continues to the in-memory home when session-only saving fails", async () => {
+    const repository = makeRepository({
+      kind: "unavailable",
+      reason: "bridge offline",
+    });
+    vi.mocked(repository.save).mockRejectedValue(new Error("bridge offline"));
+    const user = userEvent.setup();
+    renderAppAt(repository);
+
+    await screen.findByText("저장소에 연결하지 못했어요");
+    await user.click(
+      screen.getByRole("button", { name: "저장 없이 시작하기" }),
+    );
+    await user.type(screen.getByLabelText("현재 잔액"), "1000000");
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.type(screen.getByLabelText("다음 수입일"), "2026-10-01");
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.type(screen.getByLabelText("안전 여유금"), "100000");
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.click(screen.getByRole("button", { name: "계산 결과 보기" }));
+
+    expect(
+      await screen.findByText("다음 수입일까지 써도 되는 돈"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("저장하지 못했어요")).toBeInTheDocument();
+  });
+
   it("does not clear corrupt data before explicit confirmation", async () => {
     const repository = makeRepository({
       kind: "corrupt",
