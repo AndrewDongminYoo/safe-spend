@@ -10,7 +10,7 @@ import {
   makeState,
   makeStateWithPendingExpense,
 } from "../../domain/fixtures";
-import type { SafeSpendStateV1 } from "../../domain/model";
+import type { DomainServices, SafeSpendStateV1 } from "../../domain/model";
 import type { StateRepository } from "../../storage/state-repository";
 import { ExpensesPage } from "./ExpensesPage";
 
@@ -23,12 +23,16 @@ function renderExpenses(
     save,
     clear: vi.fn().mockResolvedValue(undefined),
   };
+  const domainServices: DomainServices = {
+    createId: () => "new-occurrence",
+    now: () => "2026-09-22T00:00:00.000Z",
+  };
 
   render(
     <TDSMobileAITProvider brandPrimaryColor="#3182F6">
       <AppStoreProvider repository={repository}>
         <MemoryRouter>
-          <ExpensesPage />
+          <ExpensesPage today="2026-09-22" domainServices={domainServices} />
         </MemoryRouter>
       </AppStoreProvider>
     </TDSMobileAITProvider>,
@@ -77,6 +81,48 @@ describe("ExpensesPage", () => {
     await user.click(screen.getByRole("button", { name: "보험료 납부 처리" }));
 
     expect(screen.getByLabelText("실제 출금액")).toHaveValue("250,000");
+  });
+
+  it("creates a current-cycle occurrence when an edited due day enters the horizon", async () => {
+    const { repository, user } = renderExpenses(
+      makeState({
+        currentBalance: 581_820,
+        safetyReserve: 0,
+        nextIncomeDate: "2026-09-29",
+        recurringExpenses: [
+          {
+            id: "rent",
+            name: "월세",
+            estimatedAmount: 780_000,
+            dueDay: 30,
+            isActive: true,
+          },
+        ],
+      }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "월세 반복 수정" }),
+    );
+    const dueDay = screen.getByLabelText("결제일");
+    await user.clear(dueDay);
+    await user.type(dueDay, "26");
+    await user.click(screen.getByRole("button", { name: "반복 설정 저장" }));
+
+    expect(repository.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        occurrences: [
+          expect.objectContaining({
+            id: "new-occurrence",
+            recurringExpenseId: "rent",
+            name: "월세",
+            dueDate: "2026-09-26",
+            estimatedAmount: 780_000,
+            status: "pending",
+          }),
+        ],
+      }),
+    );
   });
 
   it("keeps the payment editor open when the amount exceeds the balance", async () => {

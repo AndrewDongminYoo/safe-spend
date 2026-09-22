@@ -318,7 +318,13 @@ export function addRecurringExpense(
 export function updateRecurringExpense(
   state: SafeSpendStateV1,
   recurringExpenseId: string,
-  input: { name: string; estimatedAmount: Won; dueDay: number },
+  input: {
+    name: string;
+    estimatedAmount: Won;
+    dueDay: number;
+    today: LocalDate;
+  },
+  services: DomainServices,
 ): SafeSpendStateV1 {
   const existing = state.recurringExpenses.find(
     ({ id }) => id === recurringExpenseId,
@@ -334,13 +340,34 @@ export function updateRecurringExpense(
     estimatedAmount: assertWon(input.estimatedAmount),
     dueDay: assertDueDay(input.dueDay),
   };
+  const today = assertLocalDate(input.today);
+  const nextDueDate = listMonthlyDueDates(
+    today,
+    state.nextIncomeDate,
+    updated.dueDay,
+  )[0];
+  const hasCurrentCycleOccurrence = state.occurrences.some(
+    (occurrence) =>
+      occurrence.recurringExpenseId === recurringExpenseId &&
+      compareLocalDates(occurrence.dueDate, today) >= 0 &&
+      compareLocalDates(occurrence.dueDate, state.nextIncomeDate) <= 0,
+  );
+  const occurrences =
+    nextDueDate === undefined || hasCurrentCycleOccurrence
+      ? state.occurrences
+      : [
+          ...state.occurrences,
+          makeOccurrence(updated, nextDueDate, services.createId()),
+        ];
 
-  return {
+  return withValidProtectedAmount({
     ...state,
     recurringExpenses: state.recurringExpenses.map((item) =>
       item.id === recurringExpenseId ? updated : item,
     ),
-  };
+    occurrences,
+    updatedAt: services.now(),
+  });
 }
 
 export function deactivateRecurringExpense(

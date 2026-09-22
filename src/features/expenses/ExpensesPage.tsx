@@ -124,11 +124,17 @@ export function ExpensesPage({
 
     const saved = await mutate((current) =>
       editor.kind === "definition"
-        ? updateRecurringExpense(current, editor.expense.id, {
-            name: value.name,
-            estimatedAmount: value.amount,
-            dueDay: value.dueDay!,
-          })
+        ? updateRecurringExpense(
+            current,
+            editor.expense.id,
+            {
+              name: value.name,
+              estimatedAmount: value.amount,
+              dueDay: value.dueDay!,
+              today,
+            },
+            domainServices,
+          )
         : addRecurringExpense(
             current,
             {

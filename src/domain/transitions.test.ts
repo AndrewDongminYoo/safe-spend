@@ -235,11 +235,17 @@ describe("recurring expenses", () => {
 
   it("updates a definition without rewriting its current occurrence", () => {
     const before = makeStateWithPendingExpense(250_000);
-    const after = updateRecurringExpense(before, "recurring-expense", {
-      name: "새 보험료",
-      estimatedAmount: 260_000,
-      dueDay: 27,
-    });
+    const after = updateRecurringExpense(
+      before,
+      "recurring-expense",
+      {
+        name: "새 보험료",
+        estimatedAmount: 260_000,
+        dueDay: 27,
+        today: "2026-09-22",
+      },
+      makeServices("unused"),
+    );
 
     expect(after.recurringExpenses[0]).toMatchObject({
       name: "새 보험료",
@@ -247,6 +253,48 @@ describe("recurring expenses", () => {
       dueDay: 27,
     });
     expect(after.occurrences).toEqual(before.occurrences);
+  });
+
+  it("protects an edited expense that moves into the current cycle", () => {
+    const before = makeState({
+      currentBalance: 581_820,
+      safetyReserve: 0,
+      nextIncomeDate: "2026-09-29",
+      recurringExpenses: [
+        {
+          id: "rent",
+          name: "월세",
+          estimatedAmount: 780_000,
+          dueDay: 30,
+          isActive: true,
+        },
+      ],
+    });
+    const after = updateRecurringExpense(
+      before,
+      "rent",
+      {
+        name: "월세",
+        estimatedAmount: 780_000,
+        dueDay: 26,
+        today: "2026-09-22",
+      },
+      makeServices("occurrence-1"),
+    );
+
+    expect(after.occurrences).toEqual([
+      expect.objectContaining({
+        recurringExpenseId: "rent",
+        dueDate: "2026-09-26",
+        estimatedAmount: 780_000,
+        status: "pending",
+      }),
+    ]);
+    expect(calculateBudget(after, "2026-09-22")).toMatchObject({
+      reservedAmount: 780_000,
+      safeToSpend: 0,
+      shortfall: 198_180,
+    });
   });
 
   it("deactivates a definition while preserving occurrence history", () => {
