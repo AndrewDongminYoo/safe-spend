@@ -92,9 +92,12 @@ export function ExpenseEditor({
           label="결제일"
           labelOption="sustain"
           inputMode="numeric"
+          maxLength={2}
           suffix="일"
           value={dueDay}
-          onChange={(event) => setDueDay(event.currentTarget.value)}
+          onChange={(event) =>
+            setDueDay(event.currentTarget.value.replace(/\D/g, "").slice(0, 2))
+          }
         />
       ) : null}
       {includeDueDate ? (

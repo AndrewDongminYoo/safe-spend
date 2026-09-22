@@ -230,9 +230,14 @@ export function OnboardingPage({
           label="결제일"
           labelOption="sustain"
           inputMode="numeric"
+          maxLength={2}
           suffix="일"
           value={recurringDueDay}
-          onChange={(event) => setRecurringDueDay(event.currentTarget.value)}
+          onChange={(event) =>
+            setRecurringDueDay(
+              event.currentTarget.value.replace(/\D/g, "").slice(0, 2),
+            )
+          }
         />
       </div>
       {recurringError === null ? null : <p role="alert">{recurringError}</p>}

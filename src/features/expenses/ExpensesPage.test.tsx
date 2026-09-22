@@ -147,6 +147,18 @@ describe("ExpensesPage", () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
+  it("limits a recurring expense due day to two digits", async () => {
+    const { user } = renderExpenses(makeState());
+    await screen.findByText("반복 설정");
+    await user.click(screen.getByRole("button", { name: "고정지출 추가" }));
+
+    const dueDay = screen.getByLabelText("결제일");
+    await user.clear(dueDay);
+    await user.type(dueDay, "101010101010");
+
+    expect(dueDay).toHaveValue("10");
+  });
+
   it("keeps recurring action names accessible without repeating them visually", async () => {
     renderExpenses(
       makeState({

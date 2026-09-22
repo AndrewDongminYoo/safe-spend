@@ -114,4 +114,14 @@ describe("OnboardingPage", () => {
       }),
     );
   });
+
+  it("limits a recurring expense due day to two digits", async () => {
+    const { user } = renderOnboarding();
+    await enterCycleBasics(user);
+
+    const dueDay = screen.getByLabelText("결제일");
+    await user.type(dueDay, "101010101010");
+
+    expect(dueDay).toHaveValue("10");
+  });
 });
