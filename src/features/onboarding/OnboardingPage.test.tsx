@@ -51,6 +51,20 @@ async function enterCycleBasics(
 }
 
 describe("OnboardingPage", () => {
+  it("defaults an untouched safety reserve to zero", async () => {
+    const { repository, user } = renderOnboarding();
+    await user.type(screen.getByLabelText("현재 잔액"), "1,000,000");
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.type(screen.getByLabelText("다음 수입일"), "2026-10-01");
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await user.click(screen.getByRole("button", { name: "계산 결과 보기" }));
+
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ safetyReserve: 0 }),
+    );
+  });
+
   it("creates a cycle without requiring a recurring expense", async () => {
     const { repository, user } = renderOnboarding();
     await enterCycleBasics(user);

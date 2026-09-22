@@ -35,7 +35,7 @@ export function OnboardingPage({
   const [step, setStep] = useState(0);
   const [currentBalance, setCurrentBalance] = useState("");
   const [nextIncomeDate, setNextIncomeDate] = useState("");
-  const [safetyReserve, setSafetyReserve] = useState("");
+  const [safetyReserve, setSafetyReserve] = useState("0");
   const [recurringName, setRecurringName] = useState("");
   const [recurringAmount, setRecurringAmount] = useState("");
   const [recurringDueDay, setRecurringDueDay] = useState("");

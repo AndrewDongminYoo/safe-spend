@@ -35,6 +35,12 @@ function renderSettings(state: SafeSpendStateV1, today = "2026-09-22") {
 }
 
 describe("SettingsPage", () => {
+  it("offers cycle renewal on the income date", async () => {
+    renderSettings(makeState({ nextIncomeDate: "2026-09-22" }));
+
+    expect(await screen.findByText("수입이 들어왔나요?")).toBeInTheDocument();
+  });
+
   it("does not renew a passed cycle automatically", async () => {
     const { repository } = renderSettings(
       makeState({ nextIncomeDate: "2026-09-21" }),

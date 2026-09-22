@@ -48,7 +48,7 @@ export function SettingsPage({
     return null;
   }
 
-  const cyclePassed = compareLocalDates(state.nextIncomeDate, today) < 0;
+  const cyclePassed = compareLocalDates(state.nextIncomeDate, today) <= 0;
 
   const openEdit = () => {
     setBalanceInput(formatWon(state.currentBalance));
