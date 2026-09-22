@@ -1,6 +1,7 @@
 import { Button } from "@toss/tds-mobile";
 import { Outlet } from "react-router-dom";
 
+import { BannerAdsInitializer } from "../ads/BannerAdsInitializer";
 import { useAppStore } from "./app-store";
 
 export function AppShell() {
@@ -8,6 +9,7 @@ export function AppShell() {
 
   return (
     <>
+      <BannerAdsInitializer />
       {persistenceError === null ? null : (
         <div
           role="alert"

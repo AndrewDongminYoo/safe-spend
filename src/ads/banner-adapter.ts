@@ -61,6 +61,19 @@ export function resetBannerInitializationForTests(): void {
   initializationListeners.clear();
 }
 
+export function canUseBannerAds(
+  port: BannerAdsPort,
+  adGroupId: string | undefined,
+): adGroupId is string {
+  return (
+    typeof adGroupId === "string" &&
+    adGroupId.length > 0 &&
+    port.isVersionSupported() &&
+    port.isInitializeSupported() &&
+    port.isAttachSupported()
+  );
+}
+
 export const tossBannerAdsPort: BannerAdsPort = {
   isVersionSupported: () =>
     isMinVersionSupported({ android: "5.241.0", ios: "5.241.0" }),

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  canUseBannerAds,
   ensureBannerInitialized,
   tossBannerAdsPort,
   type BannerAdsPort,
@@ -15,12 +16,7 @@ export function HomeBanner({
   port = tossBannerAdsPort,
   adGroupId = import.meta.env.VITE_TOSS_AD_GROUP_ID,
 }: HomeBannerProps) {
-  const isSupported =
-    typeof adGroupId === "string" &&
-    adGroupId.length > 0 &&
-    port.isVersionSupported() &&
-    port.isInitializeSupported() &&
-    port.isAttachSupported();
+  const isSupported = canUseBannerAds(port, adGroupId);
   const [isVisible, setIsVisible] = useState(isSupported);
   const slotRef = useRef<HTMLDivElement>(null);
 
@@ -31,7 +27,19 @@ export function HomeBanner({
 
     let banner: { destroy(): void } | null = null;
     let isActive = true;
-    const unsubscribe = ensureBannerInitialized(port, (ready) => {
+    let unsubscribe: () => void = () => undefined;
+    const timeoutId = window.setTimeout(() => {
+      if (!isActive) {
+        return;
+      }
+
+      isActive = false;
+      unsubscribe();
+      setIsVisible(false);
+    }, 3_000);
+
+    unsubscribe = ensureBannerInitialized(port, (ready) => {
+      window.clearTimeout(timeoutId);
       if (!isActive || !ready || slotRef.current === null) {
         if (!ready) setIsVisible(false);
         return;
@@ -50,6 +58,7 @@ export function HomeBanner({
 
     return () => {
       isActive = false;
+      window.clearTimeout(timeoutId);
       unsubscribe();
       banner?.destroy();
     };
