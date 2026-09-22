@@ -42,8 +42,10 @@ export function SpendPage({
       return null;
     }
   }, [amountInput]);
+  const exceedsCurrentBalance =
+    state !== null && amount !== null && amount > state.currentBalance;
   const preview =
-    state === null || amount === null
+    state === null || amount === null || amount === 0 || exceedsCurrentBalance
       ? null
       : previewPurchase(state, today, amount);
   const result =
@@ -64,9 +66,6 @@ export function SpendPage({
 
   const exceedsSafeAmount =
     preview !== null && preview.purchaseAmount > preview.safeToSpend;
-  const exceedsCurrentBalance =
-    amount !== null && amount > state.currentBalance;
-
   const record = async () => {
     if (amount === null || amount === 0 || exceedsCurrentBalance) {
       return;
@@ -103,8 +102,18 @@ export function SpendPage({
           onChange={(event) => setMemo(event.currentTarget.value)}
         />
       </div>
+      {amountInput.length > 0 && amount === 0 ? (
+        <p role="alert">0원보다 큰 금액을 입력해 주세요</p>
+      ) : null}
+      {exceedsCurrentBalance ? (
+        <p role="alert">현재 잔액보다 큰 금액은 기록할 수 없어요</p>
+      ) : null}
       {preview === null ? null : (
-        <section aria-label="지출 영향" style={{ margin: "24px -24px" }}>
+        <section
+          aria-label="지출 영향"
+          aria-live="polite"
+          style={{ margin: "24px -24px" }}
+        >
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             <TableRow
               align="space-between"

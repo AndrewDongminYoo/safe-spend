@@ -9,6 +9,7 @@ interface MoneyAmountProps {
 export function MoneyAmount({ amount, suffix = "원" }: MoneyAmountProps) {
   return (
     <h1
+      aria-label={`${amount}원`}
       data-raw-amount={amount}
       style={{ margin: "8px 0", fontSize: 36, lineHeight: 1.3 }}
     >

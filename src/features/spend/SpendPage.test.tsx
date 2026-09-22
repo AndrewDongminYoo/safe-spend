@@ -85,5 +85,32 @@ describe("SpendPage", () => {
     expect(
       screen.getByRole("button", { name: "지출로 기록하기" }),
     ).toBeDisabled();
+    expect(
+      screen.getByText("현재 잔액보다 큰 금액은 기록할 수 없어요"),
+    ).toBeInTheDocument();
+  });
+
+  it("explains that zero is not a valid purchase and hides the preview", async () => {
+    const { user } = renderSpend(makeState());
+    await screen.findByLabelText("지출 금액");
+
+    await user.type(screen.getByLabelText("지출 금액"), "0");
+
+    expect(
+      screen.getByText("0원보다 큰 금액을 입력해 주세요"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("지출 영향")).not.toBeInTheDocument();
+  });
+
+  it("announces a valid preview as a polite live region", async () => {
+    const { user } = renderSpend(makeState());
+    await screen.findByLabelText("지출 금액");
+
+    await user.type(screen.getByLabelText("지출 금액"), "10,000");
+
+    expect(screen.getByLabelText("지출 영향")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
   });
 });

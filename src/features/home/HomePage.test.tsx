@@ -32,8 +32,9 @@ describe("HomePage", () => {
     renderHome(makeStateWithPendingExpense(250_000));
 
     expect(
-      await screen.findByRole("heading", { name: "650,000원" }),
+      await screen.findByRole("heading", { name: "650000원" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("650,000원")).toBeInTheDocument();
     expect(screen.getByText("하루 72,222원")).toBeInTheDocument();
     expect(screen.getByText("고정지출 250,000원")).toBeInTheDocument();
     expect(screen.getByText("안전 여유금 100,000원")).toBeInTheDocument();
