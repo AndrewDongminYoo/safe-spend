@@ -35,6 +35,14 @@ function renderSpend(state: SafeSpendStateV1) {
 }
 
 describe("SpendPage", () => {
+  it("keeps the amount and memo fields in one compact group", async () => {
+    renderSpend(makeState());
+
+    expect(await screen.findByRole("group", { name: "지출 정보" })).toHaveStyle(
+      { gap: "0" },
+    );
+  });
+
   it("previews without mutating state", async () => {
     const { repository, user } = renderSpend(
       makeStateWithPendingExpense(250_000),

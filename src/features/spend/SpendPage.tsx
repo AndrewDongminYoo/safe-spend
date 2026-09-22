@@ -99,7 +99,11 @@ export function SpendPage({
       title="지출 영향 확인하기"
       subtitle="결제 전에 남는 금액과 하루 예산을 확인해요."
     >
-      <div style={{ display: "grid", gap: 12 }}>
+      <div
+        role="group"
+        aria-label="지출 정보"
+        style={{ display: "grid", gap: 0 }}
+      >
         <WonTextField
           label="지출 금액"
           value={amountInput}
