@@ -79,6 +79,25 @@ describe("ExpensesPage", () => {
     expect(screen.getByLabelText("실제 출금액")).toHaveValue("250,000");
   });
 
+  it("keeps the payment editor open when the amount exceeds the balance", async () => {
+    const { repository, user } = renderExpenses(
+      makeState({
+        currentBalance: 100_000,
+        occurrences: [makeOccurrence({ estimatedAmount: 250_000 })],
+      }),
+    );
+    await screen.findByText("보험료");
+    await user.click(screen.getByRole("button", { name: "보험료 납부 처리" }));
+
+    await user.click(screen.getByRole("button", { name: "납부 완료" }));
+
+    expect(
+      screen.getByText("현재 잔액보다 큰 금액은 납부할 수 없어요"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("실제 출금액")).toHaveValue("250,000");
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
   it("disables repeated payment while saving", async () => {
     let resolveSave!: () => void;
     const savePromise = new Promise<void>((resolve) => {

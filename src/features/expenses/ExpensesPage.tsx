@@ -54,6 +54,7 @@ export function ExpensesPage({
   const { state, mutate, isSaving } = useAppStore();
   const [editor, setEditor] = useState<EditorState>({ kind: "none" });
   const [actualAmount, setActualAmount] = useState("");
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   if (state === null) {
     return null;
@@ -69,6 +70,7 @@ export function ExpensesPage({
 
   const openPayment = (occurrence: ExpenseOccurrence) => {
     setActualAmount(formatWon(occurrence.estimatedAmount));
+    setPaymentError(null);
     setEditor({ kind: "pay", occurrence });
   };
 
@@ -77,16 +79,23 @@ export function ExpensesPage({
       return;
     }
 
-    const saved = await mutate((current) =>
-      markOccurrencePaid(
-        current,
-        editor.occurrence.id,
-        parseWonInput(actualAmount),
-      ),
-    );
-    if (saved) {
-      trackProductEvent({ name: "expense_marked_paid", properties: {} });
-      setEditor({ kind: "none" });
+    try {
+      const amount = parseWonInput(actualAmount);
+      if (amount > state.currentBalance) {
+        setPaymentError("현재 잔액보다 큰 금액은 납부할 수 없어요");
+        return;
+      }
+
+      setPaymentError(null);
+      const saved = await mutate((current) =>
+        markOccurrencePaid(current, editor.occurrence.id, amount),
+      );
+      if (saved) {
+        trackProductEvent({ name: "expense_marked_paid", properties: {} });
+        setEditor({ kind: "none" });
+      }
+    } catch {
+      setPaymentError("실제 출금액을 확인해 주세요");
     }
   };
 
@@ -244,8 +253,12 @@ export function ExpensesPage({
           <WonTextField
             label="실제 출금액"
             value={actualAmount}
-            onValueChange={setActualAmount}
+            onValueChange={(value) => {
+              setActualAmount(value);
+              setPaymentError(null);
+            }}
           />
+          {paymentError === null ? null : <p role="alert">{paymentError}</p>}
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
           >
