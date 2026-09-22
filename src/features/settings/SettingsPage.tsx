@@ -142,9 +142,11 @@ export function SettingsPage({
           />
           <ListRow contents="다음 수입일" right={state.nextIncomeDate} />
         </ul>
-        <Button variant="weak" display="block" onClick={openEdit}>
-          기준 금액 수정
-        </Button>
+        {showEdit ? null : (
+          <Button variant="weak" display="block" onClick={openEdit}>
+            기준 금액 수정
+          </Button>
+        )}
       </section>
 
       {showEdit ? (
@@ -175,9 +177,23 @@ export function SettingsPage({
             />
           </label>
           {editError === null ? null : <p role="alert">{editError}</p>}
-          <Button disabled={isSaving} onClick={() => void saveSettings()}>
-            저장하기
-          </Button>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+          >
+            <Button
+              variant="weak"
+              disabled={isSaving}
+              onClick={() => {
+                setEditError(null);
+                setShowEdit(false);
+              }}
+            >
+              수정 취소
+            </Button>
+            <Button disabled={isSaving} onClick={() => void saveSettings()}>
+              저장하기
+            </Button>
+          </div>
         </section>
       ) : null}
 
@@ -249,15 +265,20 @@ export function SettingsPage({
       <section aria-label="로컬 데이터" style={{ marginTop: 32 }}>
         <h2>로컬 데이터</h2>
         <p>토스 앱을 삭제하면 이 데이터도 함께 삭제돼요.</p>
-        {isResetConfirming ? (
-          <Button color="danger" onClick={() => void resetAfterConfirmation()}>
-            초기화하기
-          </Button>
-        ) : (
-          <Button variant="weak" onClick={() => setIsResetConfirming(true)}>
-            저장 데이터 초기화
-          </Button>
-        )}
+        <div style={{ marginTop: 12 }}>
+          {isResetConfirming ? (
+            <Button
+              color="danger"
+              onClick={() => void resetAfterConfirmation()}
+            >
+              초기화하기
+            </Button>
+          ) : (
+            <Button variant="weak" onClick={() => setIsResetConfirming(true)}>
+              저장 데이터 초기화
+            </Button>
+          )}
+        </div>
       </section>
     </PageScaffold>
   );

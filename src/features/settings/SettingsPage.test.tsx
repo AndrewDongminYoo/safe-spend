@@ -95,6 +95,23 @@ describe("SettingsPage", () => {
     );
   });
 
+  it("closes the settings editor without saving", async () => {
+    const { repository, user } = renderSettings(makeState());
+    await screen.findByText("기준 금액과 날짜");
+    await user.click(screen.getByRole("button", { name: "기준 금액 수정" }));
+
+    expect(
+      screen.queryByRole("button", { name: "기준 금액 수정" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "수정 취소" }));
+
+    expect(screen.queryByLabelText("기준 금액 수정")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "기준 금액 수정" }),
+    ).toBeInTheDocument();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
   it("requires confirmation before deleting local data", async () => {
     const { repository, user } = renderSettings(makeState());
     await screen.findByText("기준 금액과 날짜");
@@ -106,6 +123,16 @@ describe("SettingsPage", () => {
     await user.click(screen.getByRole("button", { name: "초기화하기" }));
 
     expect(repository.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it("separates the local data action from its description", async () => {
+    renderSettings(makeState());
+
+    const reset = await screen.findByRole("button", {
+      name: "저장 데이터 초기화",
+    });
+
+    expect(reset.parentElement).toHaveStyle({ marginTop: "12px" });
   });
 
   it("restores balance when a spending record is deleted from settings", async () => {
