@@ -8,6 +8,23 @@ describe("parseStateSnapshot", () => {
     expect(parseStateSnapshot(JSON.stringify(makeState())).kind).toBe("ready");
   });
 
+  it("rejects a snapshot whose protected amount aggregate is unsafe", () => {
+    const raw = JSON.stringify(
+      makeState({
+        safetyReserve: Number.MAX_SAFE_INTEGER,
+        occurrences: [
+          makeOccurrence({ estimatedAmount: Number.MAX_SAFE_INTEGER }),
+        ],
+      }),
+    );
+
+    expect(parseStateSnapshot(raw)).toMatchObject({
+      kind: "corrupt",
+      raw,
+      reason: expect.stringContaining("Protected amount"),
+    });
+  });
+
   it.each([
     ["not-json", "invalid JSON"],
     [JSON.stringify({ version: 2 }), "unsupported version"],

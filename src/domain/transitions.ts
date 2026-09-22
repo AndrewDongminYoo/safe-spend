@@ -1,4 +1,5 @@
 import { compareLocalDates, listMonthlyDueDates } from "./calendar";
+import { assertProtectedAmountRange } from "./budget";
 import { assertWon } from "./money";
 import type {
   DomainServices,
@@ -106,6 +107,11 @@ function makeOccurrence(
   };
 }
 
+function withValidProtectedAmount(state: SafeSpendStateV1): SafeSpendStateV1 {
+  assertProtectedAmountRange(state);
+  return state;
+}
+
 export function createInitialState(
   input: InitialStateInput,
   services: DomainServices,
@@ -138,7 +144,7 @@ export function createInitialState(
     }
   }
 
-  return {
+  return withValidProtectedAmount({
     version: 1,
     currentBalance: assertWon(input.currentBalance),
     safetyReserve: assertWon(input.safetyReserve),
@@ -147,7 +153,7 @@ export function createInitialState(
     occurrences,
     spendingRecords: [],
     updatedAt: services.now(),
-  };
+  });
 }
 
 export function recordPurchase(
@@ -250,11 +256,11 @@ export function revertOccurrence(
   const restoredAmount =
     occurrence.status === "paid" ? assertWon(occurrence.actualAmount ?? 0) : 0;
 
-  return {
+  return withValidProtectedAmount({
     ...state,
     currentBalance: assertWon(state.currentBalance + restoredAmount),
     occurrences: replaceOccurrence(state, pending),
-  };
+  });
 }
 
 export function editPendingOccurrence(
@@ -270,7 +276,10 @@ export function editPendingOccurrence(
     estimatedAmount: assertWon(input.estimatedAmount),
   };
 
-  return { ...state, occurrences: replaceOccurrence(state, edited) };
+  return withValidProtectedAmount({
+    ...state,
+    occurrences: replaceOccurrence(state, edited),
+  });
 }
 
 export function addRecurringExpense(
@@ -298,12 +307,12 @@ export function addRecurringExpense(
           makeOccurrence(recurringExpense, nextDueDate, services.createId()),
         ];
 
-  return {
+  return withValidProtectedAmount({
     ...state,
     recurringExpenses: [...state.recurringExpenses, recurringExpense],
     occurrences,
     updatedAt: services.now(),
-  };
+  });
 }
 
 export function updateRecurringExpense(
@@ -358,12 +367,12 @@ export function updateCycleSettings(
   state: SafeSpendStateV1,
   input: { currentBalance: Won; safetyReserve: Won; nextIncomeDate: LocalDate },
 ): SafeSpendStateV1 {
-  return {
+  return withValidProtectedAmount({
     ...state,
     currentBalance: assertWon(input.currentBalance),
     safetyReserve: assertWon(input.safetyReserve),
     nextIncomeDate: assertLocalDate(input.nextIncomeDate),
-  };
+  });
 }
 
 export function renewCycle(
@@ -410,11 +419,11 @@ export function renewCycle(
     }
   }
 
-  return {
+  return withValidProtectedAmount({
     ...state,
     currentBalance: assertWon(input.currentBalance),
     nextIncomeDate,
     occurrences: [...state.occurrences, ...newOccurrences],
     updatedAt: services.now(),
-  };
+  });
 }

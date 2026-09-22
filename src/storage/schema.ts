@@ -1,4 +1,5 @@
 import { compareLocalDates } from "../domain/calendar";
+import { assertProtectedAmountRange } from "../domain/budget";
 import { assertWon } from "../domain/money";
 import type { SafeSpendStateV1 } from "../domain/model";
 
@@ -162,7 +163,9 @@ function validateState(value: unknown): SafeSpendStateV1 {
   );
   requireIsoDateTime(state.updatedAt, "updatedAt");
 
-  return state as unknown as SafeSpendStateV1;
+  const validatedState = state as unknown as SafeSpendStateV1;
+  assertProtectedAmountRange(validatedState);
+  return validatedState;
 }
 
 export function parseStateSnapshot(raw: string): LoadResult {

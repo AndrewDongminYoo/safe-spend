@@ -58,12 +58,36 @@ describe("calculateBudget", () => {
       shortfall: 50_000,
     });
   });
+
+  it("rejects protected amounts whose sum exceeds the safe integer range", () => {
+    const state = makeState({
+      currentBalance: 0,
+      safetyReserve: Number.MAX_SAFE_INTEGER,
+      occurrences: [
+        makeOccurrence({ estimatedAmount: Number.MAX_SAFE_INTEGER }),
+      ],
+    });
+
+    expect(() => calculateBudget(state, "2026-09-22")).toThrow(
+      "Protected amount exceeds the supported won range",
+    );
+  });
 });
 
 describe("previewPurchase", () => {
+  it("rejects an amount above the current balance", () => {
+    expect(() =>
+      previewPurchase(
+        makeState({ currentBalance: 10_000 }),
+        "2026-09-22",
+        10_001,
+      ),
+    ).toThrow("Purchase amount cannot exceed the current balance");
+  });
+
   it("never emits Infinity when no money is safe", () => {
     const result = previewPurchase(
-      makeState({ currentBalance: 0, safetyReserve: 0 }),
+      makeState({ currentBalance: 10_000, safetyReserve: 10_000 }),
       "2026-09-22",
       10_000,
     );

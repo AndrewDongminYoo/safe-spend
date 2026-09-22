@@ -3,12 +3,7 @@ import { assertWon } from "./money";
 import type { BudgetSummary, PurchasePreview, SafeSpendStateV1 } from "./model";
 import type { LocalDate, Won } from "./types";
 
-export function calculateBudget(
-  state: SafeSpendStateV1,
-  today: LocalDate,
-): BudgetSummary {
-  const currentBalance = assertWon(state.currentBalance);
-  const safetyReserve = assertWon(state.safetyReserve);
+export function assertProtectedAmountRange(state: SafeSpendStateV1): void {
   const reservedAmount = state.occurrences.reduce((total, occurrence) => {
     if (
       occurrence.status !== "pending" ||
@@ -17,9 +12,38 @@ export function calculateBudget(
       return total;
     }
 
-    return assertWon(total + assertWon(occurrence.estimatedAmount));
+    const nextTotal = total + assertWon(occurrence.estimatedAmount);
+    if (!Number.isSafeInteger(nextTotal)) {
+      throw new Error("Reserved amount exceeds the supported won range");
+    }
+
+    return nextTotal;
   }, 0);
-  const rawSafeToSpend = currentBalance - reservedAmount - safetyReserve;
+
+  if (!Number.isSafeInteger(reservedAmount + assertWon(state.safetyReserve))) {
+    throw new Error("Protected amount exceeds the supported won range");
+  }
+}
+
+export function calculateBudget(
+  state: SafeSpendStateV1,
+  today: LocalDate,
+): BudgetSummary {
+  const currentBalance = assertWon(state.currentBalance);
+  const safetyReserve = assertWon(state.safetyReserve);
+  assertProtectedAmountRange(state);
+  const reservedAmount = state.occurrences.reduce((total, occurrence) => {
+    if (
+      occurrence.status !== "pending" ||
+      compareLocalDates(occurrence.dueDate, state.nextIncomeDate) > 0
+    ) {
+      return total;
+    }
+
+    return total + occurrence.estimatedAmount;
+  }, 0);
+  const protectedAmount = reservedAmount + safetyReserve;
+  const rawSafeToSpend = currentBalance - protectedAmount;
   const safeToSpend = assertWon(Math.max(rawSafeToSpend, 0));
   const shortfall = assertWon(Math.max(-rawSafeToSpend, 0));
   const remainingDays = Math.max(
@@ -44,6 +68,9 @@ export function previewPurchase(
   purchaseAmount: Won,
 ): PurchasePreview {
   const amount = assertWon(purchaseAmount);
+  if (amount > assertWon(state.currentBalance)) {
+    throw new Error("Purchase amount cannot exceed the current balance");
+  }
   const budget = calculateBudget(state, today);
   const rawSafeToSpendAfter = budget.rawSafeToSpend - amount;
   const safeToSpendAfter = assertWon(Math.max(rawSafeToSpendAfter, 0));
