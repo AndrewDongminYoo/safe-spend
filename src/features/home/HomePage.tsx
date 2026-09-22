@@ -1,6 +1,7 @@
 import { Badge, Button, ListRow } from "@toss/tds-mobile";
 import { useNavigate } from "react-router-dom";
 
+import { HomeBanner } from "../../ads/HomeBanner";
 import { useAppStore } from "../../app/app-store";
 import { BudgetBreakdown } from "../../components/BudgetBreakdown";
 import { MoneyAmount } from "../../components/MoneyAmount";
@@ -93,6 +94,7 @@ export function HomePage({ today = getTodayInKorea() }: HomePageProps) {
           설정
         </Button>
       </div>
+      <HomeBanner />
     </PageScaffold>
   );
 }

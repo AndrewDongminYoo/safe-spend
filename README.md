@@ -39,8 +39,8 @@ Account linking, MyData, SMS parsing, server synchronization, notifications, cat
 
 ## Architecture
 
-The miniapp will use React, strict TypeScript, `@apps-in-toss/web-framework`, and TDS Mobile in an Apps in Toss WebView.
-Financial calculations will remain in framework-independent domain functions, while platform storage and advertising APIs will be isolated behind small adapters.
+The miniapp uses React, strict TypeScript, `@apps-in-toss/web-framework`, and TDS Mobile in an Apps in Toss WebView.
+Financial calculations remain in framework-independent domain functions, while platform storage and advertising APIs are isolated behind small adapters.
 
 ## Development
 
@@ -50,6 +50,9 @@ Install dependencies, then start the local Vite server with Apps in Toss develop
 npm install
 npm run dev
 ```
+
+`.env.example` contains the official Apps in Toss test banner ID.
+Production advertising requires a group ID issued in the Apps in Toss console; provide it as `VITE_TOSS_AD_GROUP_ID` without committing the value.
 
 Run the repository checks before committing:
 
@@ -78,6 +81,7 @@ AGENTS.md                 Contributor and agent guidelines
 ## Privacy
 
 The MVP is local-first and requires no login or server-side financial data storage.
+Financial state is stored through Apps in Toss Storage, so uninstalling the Toss app also removes this local data.
 Analytics events must never contain balances, purchase amounts, expense names, or exact financial dates.
 Do not commit credentials, account information, or real financial records.
 

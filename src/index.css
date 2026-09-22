@@ -15,6 +15,11 @@ body {
   min-height: 100vh;
 }
 
+.home-banner-slot {
+  margin-top: 24px;
+  overflow: hidden;
+}
+
 @media (min-width: 481px) {
   body {
     display: flex;
