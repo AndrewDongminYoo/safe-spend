@@ -37,24 +37,42 @@ The preview does not change stored data unless the user explicitly records the p
 
 Account linking, MyData, SMS parsing, server synchronization, notifications, category budgets, and financial reports are outside the MVP.
 
-## Planned Architecture
+## Architecture
 
 The miniapp will use React, strict TypeScript, `@apps-in-toss/web-framework`, and TDS Mobile in an Apps in Toss WebView.
 Financial calculations will remain in framework-independent domain functions, while platform storage and advertising APIs will be isolated behind small adapters.
 
-The repository is currently in the design stage and does not contain a runnable application scaffold yet.
-Development, test, and build commands will be documented here after `package.json` is generated and verified.
+## Development
+
+Install dependencies, then start the local Vite server with Apps in Toss developer tools:
+
+```sh
+npm install
+npm run dev
+```
+
+Run the repository checks before committing:
+
+```sh
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+`npm run build` produces the web bundle in `dist/` and packages it as an Apps in Toss `.ait` artifact.
+Use `npm run deploy` only when an authorized deployment is intended.
 
 ## Repository Layout
 
 ```plaintext
-src/             Application code after scaffolding
-tests/           Cross-feature and integration tests
-public/          Static assets
-docs/specs/      Approved product and technical specifications
-docs/plans/      Executable implementation plans
-AGENTS.md        Contributor and agent guidelines
-granite.config.ts  Apps in Toss metadata after scaffolding
+src/                      Application code and colocated tests
+public/                   Static assets
+docs/specs/               Approved product and technical specifications
+docs/plans/               Executable implementation plans
+apps-in-toss.config.ts    Apps in Toss bundle metadata
+AGENTS.md                 Contributor and agent guidelines
 ```
 
 ## Privacy
