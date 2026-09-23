@@ -9,19 +9,20 @@ import {
   useState,
 } from "react";
 
-import type { SafeSpendStateV1 } from "../domain/model";
+import type { SafeSpendStateV2 } from "../domain/model";
 import type { StateRepository } from "../storage/state-repository";
 
 export interface AppStoreValue {
   loadState: "loading" | "empty" | "ready" | "corrupt" | "unavailable";
-  state: SafeSpendStateV1 | null;
+  state: SafeSpendStateV2 | null;
   corruptRaw: string | null;
   isSaving: boolean;
+  persistenceMode: "storage" | "session";
   persistenceError: string | null;
   mutate(
-    transform: (current: SafeSpendStateV1) => SafeSpendStateV1,
+    transform: (current: SafeSpendStateV2) => SafeSpendStateV2,
   ): Promise<boolean>;
-  initialize(state: SafeSpendStateV1): Promise<boolean>;
+  initialize(state: SafeSpendStateV2): Promise<boolean>;
   retrySave(): Promise<boolean>;
   retryLoad(): Promise<void>;
   continueWithoutStorage(): void;
@@ -42,14 +43,18 @@ export function AppStoreProvider({
 }: AppStoreProviderProps) {
   const [loadState, setLoadState] =
     useState<AppStoreValue["loadState"]>("loading");
-  const [state, setState] = useState<SafeSpendStateV1 | null>(null);
+  const [state, setState] = useState<SafeSpendStateV2 | null>(null);
   const [corruptRaw, setCorruptRaw] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [persistenceMode, setPersistenceMode] =
+    useState<AppStoreValue["persistenceMode"]>("storage");
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
-  const stateRef = useRef<SafeSpendStateV1 | null>(null);
+  const stateRef = useRef<SafeSpendStateV2 | null>(null);
   const isSavingRef = useRef(false);
+  const persistenceModeRef =
+    useRef<AppStoreValue["persistenceMode"]>("storage");
 
-  const updateState = useCallback((nextState: SafeSpendStateV1 | null) => {
+  const updateState = useCallback((nextState: SafeSpendStateV2 | null) => {
     stateRef.current = nextState;
     setState(nextState);
   }, []);
@@ -85,14 +90,22 @@ export function AppStoreProvider({
   }, [applyLoadResult, repository]);
 
   const continueWithoutStorage = useCallback(() => {
+    persistenceModeRef.current = "session";
+    setPersistenceMode("session");
+    setPersistenceError(null);
     updateState(null);
     setCorruptRaw(null);
     setLoadState("empty");
   }, [updateState]);
 
   const persistSnapshot = useCallback(
-    async (snapshot: SafeSpendStateV1): Promise<boolean> => {
+    async (snapshot: SafeSpendStateV2): Promise<boolean> => {
       try {
+        if (persistenceModeRef.current === "session") {
+          setPersistenceError(null);
+          return true;
+        }
+
         await repository.save(snapshot);
         setPersistenceError(null);
         return true;
@@ -108,7 +121,7 @@ export function AppStoreProvider({
   );
 
   const initialize = useCallback(
-    async (initialState: SafeSpendStateV1): Promise<boolean> => {
+    async (initialState: SafeSpendStateV2): Promise<boolean> => {
       if (isSavingRef.current) {
         return false;
       }
@@ -126,7 +139,7 @@ export function AppStoreProvider({
 
   const mutate = useCallback(
     async (
-      transform: (current: SafeSpendStateV1) => SafeSpendStateV1,
+      transform: (current: SafeSpendStateV2) => SafeSpendStateV2,
     ): Promise<boolean> => {
       const current = stateRef.current;
 
@@ -137,7 +150,7 @@ export function AppStoreProvider({
       isSavingRef.current = true;
       setIsSaving(true);
 
-      let snapshot: SafeSpendStateV1;
+      let snapshot: SafeSpendStateV2;
       try {
         snapshot = { ...transform(current), updatedAt: now() };
       } catch (error) {
@@ -173,7 +186,9 @@ export function AppStoreProvider({
     setIsSaving(true);
 
     try {
-      await repository.clear();
+      if (persistenceModeRef.current === "storage") {
+        await repository.clear();
+      }
       updateState(null);
       setCorruptRaw(null);
       setLoadState("empty");
@@ -194,6 +209,7 @@ export function AppStoreProvider({
       state,
       corruptRaw,
       isSaving,
+      persistenceMode,
       persistenceError,
       mutate,
       initialize,
@@ -208,6 +224,7 @@ export function AppStoreProvider({
       isSaving,
       loadState,
       mutate,
+      persistenceMode,
       persistenceError,
       resetAfterConfirmation,
       retrySave,

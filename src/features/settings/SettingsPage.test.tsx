@@ -6,11 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AppStoreProvider } from "../../app/app-store";
 import { makeState } from "../../domain/fixtures";
-import type { DomainServices, SafeSpendStateV1 } from "../../domain/model";
+import type { DomainServices, SafeSpendStateV2 } from "../../domain/model";
 import type { StateRepository } from "../../storage/state-repository";
 import { SettingsPage } from "./SettingsPage";
 
-function renderSettings(state: SafeSpendStateV1, today = "2026-09-22") {
+function renderSettings(state: SafeSpendStateV2, today = "2026-09-22") {
   const repository: StateRepository = {
     load: vi.fn().mockResolvedValue({ kind: "ready", state }),
     save: vi.fn().mockResolvedValue(undefined),
@@ -145,6 +145,7 @@ describe("SettingsPage", () => {
             amount: 20_000,
             memo: "점심",
             spentAt: "2026-09-22T00:00:00.000Z",
+            balanceRevision: 0,
           },
         ],
       }),

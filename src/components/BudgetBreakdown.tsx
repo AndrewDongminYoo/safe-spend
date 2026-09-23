@@ -1,10 +1,10 @@
 import { TableRow } from "@toss/tds-mobile";
 
 import { formatWon } from "../domain/money";
-import type { BudgetSummary, SafeSpendStateV1 } from "../domain/model";
+import type { BudgetSummary, SafeSpendStateV2 } from "../domain/model";
 
 interface BudgetBreakdownProps {
-  state: SafeSpendStateV1;
+  state: SafeSpendStateV2;
   budget: BudgetSummary;
 }
 

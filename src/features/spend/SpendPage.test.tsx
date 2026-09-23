@@ -6,11 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AppStoreProvider } from "../../app/app-store";
 import { makeState, makeStateWithPendingExpense } from "../../domain/fixtures";
-import type { DomainServices, SafeSpendStateV1 } from "../../domain/model";
+import type { DomainServices, SafeSpendStateV2 } from "../../domain/model";
 import type { StateRepository } from "../../storage/state-repository";
 import { SpendPage } from "./SpendPage";
 
-function renderSpend(state: SafeSpendStateV1) {
+function renderSpend(state: SafeSpendStateV2) {
   const repository: StateRepository = {
     load: vi.fn().mockResolvedValue({ kind: "ready", state }),
     save: vi.fn().mockResolvedValue(undefined),

@@ -123,12 +123,11 @@ describe("startup routing", () => {
     ).toBeInTheDocument();
   });
 
-  it("continues to the in-memory home when session-only saving fails", async () => {
+  it("continues without writing when session-only storage is selected", async () => {
     const repository = makeRepository({
       kind: "unavailable",
       reason: "bridge offline",
     });
-    vi.mocked(repository.save).mockRejectedValue(new Error("bridge offline"));
     const user = userEvent.setup();
     renderAppAt(repository);
 
@@ -147,7 +146,13 @@ describe("startup routing", () => {
     expect(
       await screen.findByText("다음 수입일까지 써도 되는 돈"),
     ).toBeInTheDocument();
-    expect(screen.getByText("저장하지 못했어요")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "저장 없이 사용 중이에요. 앱을 닫으면 변경사항이 사라져요.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("저장하지 못했어요")).not.toBeInTheDocument();
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
   it("does not clear corrupt data before explicit confirmation", async () => {

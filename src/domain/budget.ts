@@ -1,9 +1,9 @@
 import { calendarDaysBetween, compareLocalDates } from "./calendar";
 import { assertWon } from "./money";
-import type { BudgetSummary, PurchasePreview, SafeSpendStateV1 } from "./model";
+import type { BudgetSummary, PurchasePreview, SafeSpendStateV2 } from "./model";
 import type { LocalDate, Won } from "./types";
 
-export function assertProtectedAmountRange(state: SafeSpendStateV1): void {
+export function assertProtectedAmountRange(state: SafeSpendStateV2): void {
   const reservedAmount = state.occurrences.reduce((total, occurrence) => {
     if (
       occurrence.status !== "pending" ||
@@ -26,7 +26,7 @@ export function assertProtectedAmountRange(state: SafeSpendStateV1): void {
 }
 
 export function calculateBudget(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   today: LocalDate,
 ): BudgetSummary {
   const currentBalance = assertWon(state.currentBalance);
@@ -63,7 +63,7 @@ export function calculateBudget(
 }
 
 export function previewPurchase(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   today: LocalDate,
   purchaseAmount: Won,
 ): PurchasePreview {

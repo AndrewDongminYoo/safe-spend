@@ -1,7 +1,8 @@
 import type { IsoDateTime, LocalDate, Won } from "./types";
 
-export interface SafeSpendStateV1 {
-  version: 1;
+export interface SafeSpendStateV2 {
+  version: 2;
+  balanceRevision: number;
   currentBalance: Won;
   safetyReserve: Won;
   nextIncomeDate: LocalDate;
@@ -27,6 +28,7 @@ export interface ExpenseOccurrence {
   estimatedAmount: Won;
   status: "pending" | "paid" | "skipped";
   actualAmount?: Won;
+  balanceRevision?: number;
 }
 
 export interface SpendingRecord {
@@ -34,6 +36,7 @@ export interface SpendingRecord {
   amount: Won;
   memo?: string;
   spentAt: IsoDateTime;
+  balanceRevision: number;
 }
 
 export interface RecurringExpenseInput {

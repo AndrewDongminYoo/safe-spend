@@ -1,4 +1,8 @@
-import { compareLocalDates, listMonthlyDueDates } from "./calendar";
+import {
+  compareLocalDates,
+  listMonthlyDueDates,
+  resolveMonthlyDueDate,
+} from "./calendar";
 import { assertProtectedAmountRange } from "./budget";
 import { assertWon } from "./money";
 import type {
@@ -7,7 +11,7 @@ import type {
   InitialStateInput,
   RecurringExpense,
   RecurringExpenseInput,
-  SafeSpendStateV1,
+  SafeSpendStateV2,
 } from "./model";
 import type { LocalDate, Won } from "./types";
 
@@ -34,7 +38,7 @@ function assertDueDay(dueDay: number): number {
   return dueDay;
 }
 
-function assertDeductibleBalance(state: SafeSpendStateV1, amount: Won): Won {
+function assertDeductibleBalance(state: SafeSpendStateV2, amount: Won): Won {
   const validatedAmount = assertWon(amount);
 
   if (validatedAmount > assertWon(state.currentBalance)) {
@@ -45,7 +49,7 @@ function assertDeductibleBalance(state: SafeSpendStateV1, amount: Won): Won {
 }
 
 function findOccurrence(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
 ): ExpenseOccurrence {
   const occurrence = state.occurrences.find(({ id }) => id === occurrenceId);
@@ -58,7 +62,7 @@ function findOccurrence(
 }
 
 function findPendingOccurrence(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
 ): ExpenseOccurrence {
   const occurrence = findOccurrence(state, occurrenceId);
@@ -71,7 +75,7 @@ function findPendingOccurrence(
 }
 
 function replaceOccurrence(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   replacement: ExpenseOccurrence,
 ): ExpenseOccurrence[] {
   return state.occurrences.map((occurrence) =>
@@ -107,7 +111,51 @@ function makeOccurrence(
   };
 }
 
-function withValidProtectedAmount(state: SafeSpendStateV1): SafeSpendStateV1 {
+function occurrenceKey(recurringExpenseId: string, dueDate: LocalDate): string {
+  return `${recurringExpenseId}:${dueDate}`;
+}
+
+function generateOccurrences(
+  state: SafeSpendStateV2,
+  fromExclusive: LocalDate,
+  toInclusive: LocalDate,
+  services: DomainServices,
+): ExpenseOccurrence[] {
+  const occurrences = [...state.occurrences];
+  const existingKeys = new Set(
+    occurrences.map((occurrence) =>
+      occurrenceKey(occurrence.recurringExpenseId, occurrence.dueDate),
+    ),
+  );
+
+  for (const recurringExpense of state.recurringExpenses.filter(
+    ({ isActive }) => isActive,
+  )) {
+    for (const dueDate of listMonthlyDueDates(
+      fromExclusive,
+      toInclusive,
+      recurringExpense.dueDay,
+    )) {
+      if (compareLocalDates(dueDate, fromExclusive) <= 0) {
+        continue;
+      }
+
+      const key = occurrenceKey(recurringExpense.id, dueDate);
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      occurrences.push(
+        makeOccurrence(recurringExpense, dueDate, services.createId()),
+      );
+      existingKeys.add(key);
+    }
+  }
+
+  return occurrences;
+}
+
+function withValidProtectedAmount(state: SafeSpendStateV2): SafeSpendStateV2 {
   assertProtectedAmountRange(state);
   return state;
 }
@@ -115,7 +163,7 @@ function withValidProtectedAmount(state: SafeSpendStateV1): SafeSpendStateV1 {
 export function createInitialState(
   input: InitialStateInput,
   services: DomainServices,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const cycleStartDate = assertLocalDate(input.cycleStartDate);
   const nextIncomeDate = assertLocalDate(input.nextIncomeDate);
 
@@ -145,7 +193,8 @@ export function createInitialState(
   }
 
   return withValidProtectedAmount({
-    version: 1,
+    version: 2,
+    balanceRevision: 0,
     currentBalance: assertWon(input.currentBalance),
     safetyReserve: assertWon(input.safetyReserve),
     nextIncomeDate,
@@ -157,11 +206,11 @@ export function createInitialState(
 }
 
 export function recordPurchase(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   amount: Won,
   memo: string | undefined,
   services: DomainServices,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const validatedAmount = assertDeductibleBalance(state, amount);
 
   if (validatedAmount === 0) {
@@ -176,6 +225,7 @@ export function recordPurchase(
       ? {}
       : { memo: trimmedMemo }),
     spentAt: services.now(),
+    balanceRevision: state.balanceRevision,
   };
 
   return {
@@ -187,9 +237,9 @@ export function recordPurchase(
 }
 
 export function deleteSpendingRecord(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   recordId: string,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const record = state.spendingRecords.find(({ id }) => id === recordId);
 
   if (record === undefined) {
@@ -198,22 +248,26 @@ export function deleteSpendingRecord(
 
   return {
     ...state,
-    currentBalance: assertWon(state.currentBalance + assertWon(record.amount)),
+    currentBalance:
+      record.balanceRevision === state.balanceRevision
+        ? assertWon(state.currentBalance + assertWon(record.amount))
+        : state.currentBalance,
     spendingRecords: state.spendingRecords.filter(({ id }) => id !== recordId),
   };
 }
 
 export function markOccurrencePaid(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
   actualAmount: Won,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const occurrence = findPendingOccurrence(state, occurrenceId);
   const validatedAmount = assertDeductibleBalance(state, actualAmount);
   const paid: ExpenseOccurrence = {
     ...occurrence,
     status: "paid",
     actualAmount: validatedAmount,
+    balanceRevision: state.balanceRevision,
   };
 
   return {
@@ -224,9 +278,9 @@ export function markOccurrencePaid(
 }
 
 export function markOccurrenceSkipped(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const occurrence = findPendingOccurrence(state, occurrenceId);
 
   return {
@@ -236,10 +290,10 @@ export function markOccurrenceSkipped(
 }
 
 export function postponePendingOccurrence(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
   dueDate: LocalDate,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const occurrence = findPendingOccurrence(state, occurrenceId);
   const postponedDueDate = assertLocalDate(dueDate);
 
@@ -257,9 +311,9 @@ export function postponePendingOccurrence(
 }
 
 export function revertOccurrence(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const occurrence = findOccurrence(state, occurrenceId);
 
   if (occurrence.status === "pending") {
@@ -275,7 +329,10 @@ export function revertOccurrence(
     status: "pending",
   };
   const restoredAmount =
-    occurrence.status === "paid" ? assertWon(occurrence.actualAmount ?? 0) : 0;
+    occurrence.status === "paid" &&
+    occurrence.balanceRevision === state.balanceRevision
+      ? assertWon(occurrence.actualAmount ?? 0)
+      : 0;
 
   return withValidProtectedAmount({
     ...state,
@@ -285,10 +342,10 @@ export function revertOccurrence(
 }
 
 export function editPendingOccurrence(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   occurrenceId: string,
   input: { name: string; dueDate: LocalDate; estimatedAmount: Won },
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const occurrence = findPendingOccurrence(state, occurrenceId);
   const edited: ExpenseOccurrence = {
     ...occurrence,
@@ -304,7 +361,7 @@ export function editPendingOccurrence(
 }
 
 export function addRecurringExpense(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   input: {
     name: string;
     estimatedAmount: Won;
@@ -312,7 +369,7 @@ export function addRecurringExpense(
     today: LocalDate;
   },
   services: DomainServices,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const today = assertLocalDate(input.today);
   const recurringExpense = makeRecurringExpense(input, services.createId());
   const nextDueDate = listMonthlyDueDates(
@@ -337,7 +394,7 @@ export function addRecurringExpense(
 }
 
 export function updateRecurringExpense(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   recurringExpenseId: string,
   input: {
     name: string;
@@ -346,7 +403,7 @@ export function updateRecurringExpense(
     today: LocalDate;
   },
   services: DomainServices,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const existing = state.recurringExpenses.find(
     ({ id }) => id === recurringExpenseId,
   );
@@ -362,24 +419,52 @@ export function updateRecurringExpense(
     dueDay: assertDueDay(input.dueDay),
   };
   const today = assertLocalDate(input.today);
-  const nextDueDate = listMonthlyDueDates(
-    today,
-    state.nextIncomeDate,
-    updated.dueDay,
-  )[0];
-  const hasCurrentCycleOccurrence = state.occurrences.some(
+  const protectedPending = state.occurrences.filter(
     (occurrence) =>
       occurrence.recurringExpenseId === recurringExpenseId &&
-      compareLocalDates(occurrence.dueDate, today) >= 0 &&
+      occurrence.status === "pending" &&
       compareLocalDates(occurrence.dueDate, state.nextIncomeDate) <= 0,
   );
-  const occurrences =
-    nextDueDate === undefined || hasCurrentCycleOccurrence
-      ? state.occurrences
-      : [
-          ...state.occurrences,
-          makeOccurrence(updated, nextDueDate, services.createId()),
-        ];
+  const occurrences = state.occurrences.filter(
+    (occurrence) => !protectedPending.some(({ id }) => id === occurrence.id),
+  );
+  const existingKeys = new Set(
+    occurrences.map((occurrence) =>
+      occurrenceKey(occurrence.recurringExpenseId, occurrence.dueDate),
+    ),
+  );
+
+  if (protectedPending.length > 0) {
+    for (const occurrence of protectedPending) {
+      const dueDate = resolveMonthlyDueDate(occurrence.dueDate, updated.dueDay);
+      const key = occurrenceKey(recurringExpenseId, dueDate);
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      occurrences.push({
+        ...occurrence,
+        name: updated.name,
+        estimatedAmount: updated.estimatedAmount,
+        dueDate,
+      });
+      existingKeys.add(key);
+    }
+  } else {
+    for (const dueDate of listMonthlyDueDates(
+      today,
+      state.nextIncomeDate,
+      updated.dueDay,
+    )) {
+      const key = occurrenceKey(recurringExpenseId, dueDate);
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      occurrences.push(makeOccurrence(updated, dueDate, services.createId()));
+      existingKeys.add(key);
+    }
+  }
 
   return withValidProtectedAmount({
     ...state,
@@ -392,9 +477,9 @@ export function updateRecurringExpense(
 }
 
 export function deactivateRecurringExpense(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   recurringExpenseId: string,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const existing = state.recurringExpenses.find(
     ({ id }) => id === recurringExpenseId,
   );
@@ -412,26 +497,48 @@ export function deactivateRecurringExpense(
 }
 
 export function updateCycleSettings(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   input: { currentBalance: Won; safetyReserve: Won; nextIncomeDate: LocalDate },
-): SafeSpendStateV1 {
-  return withValidProtectedAmount({
+  services: DomainServices,
+): SafeSpendStateV2 {
+  const currentBalance = assertWon(input.currentBalance);
+  const nextIncomeDate = assertLocalDate(input.nextIncomeDate);
+  const balanceRevision =
+    currentBalance === state.currentBalance
+      ? state.balanceRevision
+      : assertWon(state.balanceRevision + 1);
+  const updated = {
     ...state,
-    currentBalance: assertWon(input.currentBalance),
+    balanceRevision,
+    currentBalance,
     safetyReserve: assertWon(input.safetyReserve),
-    nextIncomeDate: assertLocalDate(input.nextIncomeDate),
+    nextIncomeDate,
+  };
+  const occurrences =
+    compareLocalDates(nextIncomeDate, state.nextIncomeDate) > 0
+      ? generateOccurrences(
+          updated,
+          state.nextIncomeDate,
+          nextIncomeDate,
+          services,
+        )
+      : state.occurrences;
+
+  return withValidProtectedAmount({
+    ...updated,
+    occurrences,
   });
 }
 
 export function renewCycle(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   input: {
     currentBalance: Won;
     receivedOn: LocalDate;
     nextIncomeDate: LocalDate;
   },
   services: DomainServices,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   const receivedOn = assertLocalDate(input.receivedOn);
   const nextIncomeDate = assertLocalDate(input.nextIncomeDate);
 
@@ -439,39 +546,23 @@ export function renewCycle(
     throw new Error("Next income date must be after the received date");
   }
 
-  const newOccurrences: ExpenseOccurrence[] = [];
-
-  for (const recurringExpense of state.recurringExpenses.filter(
-    ({ isActive }) => isActive,
-  )) {
-    for (const dueDate of listMonthlyDueDates(
-      receivedOn,
-      nextIncomeDate,
-      recurringExpense.dueDay,
-    )) {
-      if (compareLocalDates(dueDate, receivedOn) <= 0) {
-        continue;
-      }
-
-      const alreadyExists = state.occurrences.some(
-        (occurrence) =>
-          occurrence.recurringExpenseId === recurringExpense.id &&
-          occurrence.dueDate === dueDate,
-      );
-
-      if (!alreadyExists) {
-        newOccurrences.push(
-          makeOccurrence(recurringExpense, dueDate, services.createId()),
-        );
-      }
-    }
-  }
+  const fromExclusive =
+    compareLocalDates(state.nextIncomeDate, receivedOn) <= 0
+      ? state.nextIncomeDate
+      : receivedOn;
+  const occurrences = generateOccurrences(
+    state,
+    fromExclusive,
+    nextIncomeDate,
+    services,
+  );
 
   return withValidProtectedAmount({
     ...state,
+    balanceRevision: assertWon(state.balanceRevision + 1),
     currentBalance: assertWon(input.currentBalance),
     nextIncomeDate,
-    occurrences: [...state.occurrences, ...newOccurrences],
+    occurrences,
     updatedAt: services.now(),
   });
 }

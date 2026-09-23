@@ -1,7 +1,7 @@
 import type {
   DomainServices,
   ExpenseOccurrence,
-  SafeSpendStateV1,
+  SafeSpendStateV2,
 } from "./model";
 
 export const testDomainServices: DomainServices = {
@@ -24,10 +24,11 @@ export function makeOccurrence(
 }
 
 export function makeState(
-  overrides: Partial<SafeSpendStateV1> = {},
-): SafeSpendStateV1 {
+  overrides: Partial<SafeSpendStateV2> = {},
+): SafeSpendStateV2 {
   return {
-    version: 1,
+    version: 2,
+    balanceRevision: 0,
     currentBalance: 1_000_000,
     safetyReserve: 100_000,
     nextIncomeDate: "2026-10-01",
@@ -41,7 +42,7 @@ export function makeState(
 
 export function makeStateWithPendingExpense(
   estimatedAmount: number,
-): SafeSpendStateV1 {
+): SafeSpendStateV2 {
   return makeState({
     recurringExpenses: [
       {

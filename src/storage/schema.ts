@@ -1,11 +1,11 @@
 import { compareLocalDates } from "../domain/calendar";
 import { assertProtectedAmountRange } from "../domain/budget";
 import { assertWon } from "../domain/money";
-import type { SafeSpendStateV1 } from "../domain/model";
+import type { SafeSpendStateV2 } from "../domain/model";
 
 export type LoadResult =
   | { kind: "empty" }
-  | { kind: "ready"; state: SafeSpendStateV1 }
+  | { kind: "ready"; state: SafeSpendStateV2 }
   | { kind: "corrupt"; raw: string; reason: string }
   | { kind: "unavailable"; reason: string };
 
@@ -107,7 +107,11 @@ function validateRecurringExpense(value: unknown, index: number): void {
   requireBoolean(item.isActive, `${path}.isActive`);
 }
 
-function validateOccurrence(value: unknown, index: number): void {
+function validateOccurrence(
+  value: unknown,
+  index: number,
+  requireBalanceRevision: boolean,
+): void {
   const path = `occurrences[${index}]`;
   const item = requireRecord(value, path);
   requireString(item.id, `${path}.id`);
@@ -126,12 +130,23 @@ function validateOccurrence(value: unknown, index: number): void {
 
   if (item.status === "paid") {
     requireWon(item.actualAmount, `${path}.actualAmount`);
+    if (requireBalanceRevision) {
+      requireWon(item.balanceRevision, `${path}.balanceRevision`);
+    }
   } else if (item.actualAmount !== undefined) {
     throw new Error(`${path}.actualAmount is only valid for paid occurrences`);
+  } else if (item.balanceRevision !== undefined) {
+    throw new Error(
+      `${path}.balanceRevision is only valid for paid occurrences`,
+    );
   }
 }
 
-function validateSpendingRecord(value: unknown, index: number): void {
+function validateSpendingRecord(
+  value: unknown,
+  index: number,
+  requireBalanceRevision: boolean,
+): void {
   const path = `spendingRecords[${index}]`;
   const item = requireRecord(value, path);
   requireString(item.id, `${path}.id`);
@@ -142,28 +157,93 @@ function validateSpendingRecord(value: unknown, index: number): void {
   }
 
   requireIsoDateTime(item.spentAt, `${path}.spentAt`);
+  if (requireBalanceRevision) {
+    requireWon(item.balanceRevision, `${path}.balanceRevision`);
+  }
 }
 
-function validateState(value: unknown): SafeSpendStateV1 {
-  const state = requireRecord(value, "snapshot");
-
-  if (state.version !== 1) {
-    throw new Error(`unsupported version: ${String(state.version)}`);
-  }
-
+function validateStateFields(
+  state: Record<string, unknown>,
+  requireBalanceRevision: boolean,
+): void {
   requireWon(state.currentBalance, "currentBalance");
   requireWon(state.safetyReserve, "safetyReserve");
   requireLocalDate(state.nextIncomeDate, "nextIncomeDate");
   requireArray(state.recurringExpenses, "recurringExpenses").forEach(
     validateRecurringExpense,
   );
-  requireArray(state.occurrences, "occurrences").forEach(validateOccurrence);
+  requireArray(state.occurrences, "occurrences").forEach((value, index) =>
+    validateOccurrence(value, index, requireBalanceRevision),
+  );
   requireArray(state.spendingRecords, "spendingRecords").forEach(
-    validateSpendingRecord,
+    (value, index) =>
+      validateSpendingRecord(value, index, requireBalanceRevision),
   );
   requireIsoDateTime(state.updatedAt, "updatedAt");
+}
 
-  const validatedState = state as unknown as SafeSpendStateV1;
+function migrateVersion1(state: Record<string, unknown>): SafeSpendStateV2 {
+  return {
+    ...state,
+    version: 2,
+    balanceRevision: 1,
+    occurrences: requireArray(state.occurrences, "occurrences").map((value) => {
+      const occurrence = requireRecord(value, "occurrence");
+      return occurrence.status === "paid"
+        ? { ...occurrence, balanceRevision: 0 }
+        : occurrence;
+    }),
+    spendingRecords: requireArray(state.spendingRecords, "spendingRecords").map(
+      (value) => ({
+        ...requireRecord(value, "spendingRecord"),
+        balanceRevision: 0,
+      }),
+    ),
+  } as unknown as SafeSpendStateV2;
+}
+
+function assertDeductionRevisionRange(state: SafeSpendStateV2): void {
+  state.occurrences.forEach((occurrence, index) => {
+    if (
+      occurrence.status === "paid" &&
+      occurrence.balanceRevision !== undefined &&
+      occurrence.balanceRevision > state.balanceRevision
+    ) {
+      throw new Error(
+        `occurrences[${index}].balanceRevision cannot exceed balanceRevision`,
+      );
+    }
+  });
+
+  state.spendingRecords.forEach((record, index) => {
+    if (record.balanceRevision > state.balanceRevision) {
+      throw new Error(
+        `spendingRecords[${index}].balanceRevision cannot exceed balanceRevision`,
+      );
+    }
+  });
+}
+
+function validateState(value: unknown): SafeSpendStateV2 {
+  const state = requireRecord(value, "snapshot");
+
+  if (state.version === 1) {
+    validateStateFields(state, false);
+    const migrated = migrateVersion1(state);
+    assertDeductionRevisionRange(migrated);
+    assertProtectedAmountRange(migrated);
+    return migrated;
+  }
+
+  if (state.version !== 2) {
+    throw new Error(`unsupported version: ${String(state.version)}`);
+  }
+
+  requireWon(state.balanceRevision, "balanceRevision");
+  validateStateFields(state, true);
+
+  const validatedState = state as unknown as SafeSpendStateV2;
+  assertDeductionRevisionRange(validatedState);
   assertProtectedAmountRange(validatedState);
   return validatedState;
 }

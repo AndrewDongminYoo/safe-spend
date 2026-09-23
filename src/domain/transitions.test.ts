@@ -48,6 +48,7 @@ describe("purchase records", () => {
         amount: 20_000,
         memo: "점심",
         spentAt: "2026-09-22T00:00:00.000Z",
+        balanceRevision: 0,
       },
     ]);
   });
@@ -68,6 +69,50 @@ describe("purchase records", () => {
     );
 
     expect(deleteSpendingRecord(recorded, "id-1").currentBalance).toBe(500_000);
+  });
+
+  it("does not refund a spending record after the balance is replaced", () => {
+    const recorded = recordPurchase(
+      makeState({ currentBalance: 500_000 }),
+      100_000,
+      "과거 지출",
+      testDomainServices,
+    );
+    const replaced = updateCycleSettings(
+      recorded,
+      {
+        currentBalance: 3_000_000,
+        safetyReserve: recorded.safetyReserve,
+        nextIncomeDate: recorded.nextIncomeDate,
+      },
+      makeServices(),
+    );
+
+    expect(deleteSpendingRecord(replaced, "id-1").currentBalance).toBe(
+      3_000_000,
+    );
+  });
+
+  it("keeps a current deduction refundable when only other settings change", () => {
+    const recorded = recordPurchase(
+      makeState({ currentBalance: 500_000 }),
+      100_000,
+      "현재 지출",
+      testDomainServices,
+    );
+    const settingsChanged = updateCycleSettings(
+      recorded,
+      {
+        currentBalance: recorded.currentBalance,
+        safetyReserve: 50_000,
+        nextIncomeDate: recorded.nextIncomeDate,
+      },
+      makeServices(),
+    );
+
+    expect(deleteSpendingRecord(settingsChanged, "id-1").currentBalance).toBe(
+      500_000,
+    );
   });
 
   it("rejects unsafe or unaffordable purchases", () => {
@@ -154,6 +199,27 @@ describe("expense occurrence transitions", () => {
     const reverted = revertOccurrence(paid, "expense-occurrence");
 
     expect(reverted).toEqual(before);
+  });
+
+  it("does not refund an occurrence paid before cycle renewal", () => {
+    const paid = markOccurrencePaid(
+      makeStateWithPendingExpense(250_000),
+      "expense-occurrence",
+      200_000,
+    );
+    const renewed = renewCycle(
+      paid,
+      {
+        currentBalance: 3_000_000,
+        receivedOn: "2026-10-01",
+        nextIncomeDate: "2026-11-01",
+      },
+      makeServices("new-occurrence"),
+    );
+
+    expect(revertOccurrence(renewed, "expense-occurrence").currentBalance).toBe(
+      3_000_000,
+    );
   });
 
   it("edits only a pending occurrence", () => {
@@ -274,7 +340,7 @@ describe("recurring expenses", () => {
     expect(outside.occurrences).toHaveLength(0);
   });
 
-  it("updates a definition without rewriting its current occurrence", () => {
+  it("updates the current pending occurrence with its recurring definition", () => {
     const before = makeStateWithPendingExpense(250_000);
     const after = updateRecurringExpense(
       before,
@@ -293,7 +359,73 @@ describe("recurring expenses", () => {
       estimatedAmount: 260_000,
       dueDay: 27,
     });
-    expect(after.occurrences).toEqual(before.occurrences);
+    expect(after.occurrences).toEqual([
+      {
+        ...before.occurrences[0],
+        name: "새 보험료",
+        estimatedAmount: 260_000,
+        dueDate: "2026-09-27",
+      },
+    ]);
+    expect(calculateBudget(after, "2026-09-22").reservedAmount).toBe(260_000);
+  });
+
+  it("replaces an overdue pending occurrence instead of reserving twice", () => {
+    const before = makeStateWithPendingExpense(200_000);
+    before.occurrences = [{ ...before.occurrences[0]!, dueDate: "2026-09-20" }];
+
+    const after = updateRecurringExpense(
+      before,
+      "recurring-expense",
+      {
+        name: "새 보험료",
+        estimatedAmount: 220_000,
+        dueDay: 24,
+        today: "2026-09-23",
+      },
+      makeServices("unused"),
+    );
+
+    expect(after.occurrences).toEqual([
+      expect.objectContaining({
+        id: "expense-occurrence",
+        name: "새 보험료",
+        dueDate: "2026-09-24",
+        estimatedAmount: 220_000,
+        status: "pending",
+      }),
+    ]);
+    expect(calculateBudget(after, "2026-09-23").reservedAmount).toBe(220_000);
+  });
+
+  it("preserves completed history while reconciling a definition", () => {
+    const before = markOccurrencePaid(
+      makeStateWithPendingExpense(200_000),
+      "expense-occurrence",
+      190_000,
+    );
+
+    const after = updateRecurringExpense(
+      before,
+      "recurring-expense",
+      {
+        name: "새 보험료",
+        estimatedAmount: 220_000,
+        dueDay: 27,
+        today: "2026-09-22",
+      },
+      makeServices("new-occurrence"),
+    );
+
+    expect(after.occurrences).toHaveLength(2);
+    expect(after.occurrences[0]).toEqual(before.occurrences[0]);
+    expect(after.occurrences[1]).toMatchObject({
+      id: "new-occurrence",
+      name: "새 보험료",
+      dueDate: "2026-09-27",
+      estimatedAmount: 220_000,
+      status: "pending",
+    });
   });
 
   it("protects an edited expense that moves into the current cycle", () => {
@@ -349,17 +481,93 @@ describe("recurring expenses", () => {
 
 describe("cycle settings and renewal", () => {
   it("updates validated cycle settings", () => {
-    const state = updateCycleSettings(makeState(), {
-      currentBalance: 800_000,
-      safetyReserve: 50_000,
-      nextIncomeDate: "2026-10-25",
-    });
+    const state = updateCycleSettings(
+      makeState(),
+      {
+        currentBalance: 800_000,
+        safetyReserve: 50_000,
+        nextIncomeDate: "2026-10-25",
+      },
+      makeServices(),
+    );
 
     expect(state).toMatchObject({
       currentBalance: 800_000,
       safetyReserve: 50_000,
       nextIncomeDate: "2026-10-25",
     });
+  });
+
+  it("generates expenses when the income-date horizon is extended", () => {
+    const before = makeState({
+      currentBalance: 1_000_000,
+      safetyReserve: 0,
+      nextIncomeDate: "2026-09-25",
+      recurringExpenses: [
+        {
+          id: "rent",
+          name: "월세",
+          estimatedAmount: 500_000,
+          dueDay: 5,
+          isActive: true,
+        },
+      ],
+    });
+    const after = updateCycleSettings(
+      before,
+      {
+        currentBalance: before.currentBalance,
+        safetyReserve: before.safetyReserve,
+        nextIncomeDate: "2026-10-10",
+      },
+      makeServices("october-rent"),
+    );
+
+    expect(after.occurrences).toEqual([
+      expect.objectContaining({
+        id: "october-rent",
+        recurringExpenseId: "rent",
+        dueDate: "2026-10-05",
+        status: "pending",
+      }),
+    ]);
+    expect(calculateBudget(after, "2026-09-23").reservedAmount).toBe(500_000);
+  });
+
+  it("generates the bill due on a late renewal confirmation day", () => {
+    const before = makeState({
+      currentBalance: 1_000_000,
+      safetyReserve: 0,
+      nextIncomeDate: "2026-09-25",
+      recurringExpenses: [
+        {
+          id: "rent",
+          name: "월세",
+          estimatedAmount: 500_000,
+          dueDay: 5,
+          isActive: true,
+        },
+      ],
+    });
+    const after = renewCycle(
+      before,
+      {
+        currentBalance: 1_000_000,
+        receivedOn: "2026-10-05",
+        nextIncomeDate: "2026-10-31",
+      },
+      makeServices("october-rent"),
+    );
+
+    expect(after.occurrences).toEqual([
+      expect.objectContaining({
+        id: "october-rent",
+        recurringExpenseId: "rent",
+        dueDate: "2026-10-05",
+        status: "pending",
+      }),
+    ]);
+    expect(calculateBudget(after, "2026-10-05").reservedAmount).toBe(500_000);
   });
 
   it("retains history and creates active occurrences strictly after income", () => {
