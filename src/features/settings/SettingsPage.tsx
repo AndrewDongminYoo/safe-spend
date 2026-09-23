@@ -66,7 +66,11 @@ export function SettingsPage({
       };
       compareLocalDates(input.nextIncomeDate, input.nextIncomeDate);
       setEditError(null);
-      if (await mutate((current) => updateCycleSettings(current, input))) {
+      if (
+        await mutate((current) =>
+          updateCycleSettings(current, input, domainServices),
+        )
+      ) {
         setShowEdit(false);
       }
     } catch {

@@ -1,6 +1,6 @@
 import { Storage } from "@apps-in-toss/web-framework";
 
-import type { SafeSpendStateV1 } from "../domain/model";
+import type { SafeSpendStateV2 } from "../domain/model";
 import { parseStateSnapshot, type LoadResult } from "./schema";
 
 const STATE_KEY = "safe-spend:state";
@@ -13,7 +13,7 @@ export interface StoragePort {
 
 export interface StateRepository {
   load(): Promise<LoadResult>;
-  save(state: SafeSpendStateV1): Promise<void>;
+  save(state: SafeSpendStateV2): Promise<void>;
   clear(): Promise<void>;
 }
 

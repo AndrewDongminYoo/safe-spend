@@ -10,12 +10,12 @@ import {
   makeState,
   makeStateWithPendingExpense,
 } from "../../domain/fixtures";
-import type { DomainServices, SafeSpendStateV1 } from "../../domain/model";
+import type { DomainServices, SafeSpendStateV2 } from "../../domain/model";
 import type { StateRepository } from "../../storage/state-repository";
 import { ExpensesPage } from "./ExpensesPage";
 
 function renderExpenses(
-  state: SafeSpendStateV1,
+  state: SafeSpendStateV2,
   save = vi.fn().mockResolvedValue(undefined),
 ) {
   const repository: StateRepository = {

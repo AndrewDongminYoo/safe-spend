@@ -54,6 +54,17 @@ function StoreProbe() {
       >
         record purchase
       </button>
+      <button type="button" onClick={store.continueWithoutStorage}>
+        use session
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void store.initialize(makeState({ currentBalance: 700_000 }))
+        }
+      >
+        initialize
+      </button>
       <button type="button" onClick={() => void store.retrySave()}>
         retry save
       </button>
@@ -129,5 +140,30 @@ describe("AppStoreProvider", () => {
 
     await waitFor(() => expect(repository.clear).toHaveBeenCalledTimes(1));
     expect(screen.getByText("empty")).toBeInTheDocument();
+  });
+
+  it("keeps session-only initialization and mutations out of storage", async () => {
+    const repository = makeRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: "unavailable",
+        reason: "bridge offline",
+      } satisfies LoadResult),
+    });
+    const user = userEvent.setup();
+    renderStoreProbe(repository);
+    await screen.findByText("unavailable");
+
+    await user.click(screen.getByRole("button", { name: "use session" }));
+    await user.click(screen.getByRole("button", { name: "initialize" }));
+    expect(await screen.findByText("700000")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "record purchase" }));
+    expect(await screen.findByText("680000")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "retry save" }));
+    await user.click(screen.getByRole("button", { name: "reset" }));
+
+    expect(await screen.findByText("empty")).toBeInTheDocument();
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(repository.clear).not.toHaveBeenCalled();
   });
 });

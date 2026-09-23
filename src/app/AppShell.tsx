@@ -5,11 +5,19 @@ import { BannerAdsInitializer } from "../ads/BannerAdsInitializer";
 import { useAppStore } from "./app-store";
 
 export function AppShell() {
-  const { persistenceError, retrySave } = useAppStore();
+  const { persistenceError, persistenceMode, retrySave } = useAppStore();
 
   return (
     <>
       <BannerAdsInitializer />
+      {persistenceMode === "session" ? (
+        <div
+          role="status"
+          style={{ padding: "12px 20px", background: "#f2f4f6" }}
+        >
+          저장 없이 사용 중이에요. 앱을 닫으면 변경사항이 사라져요.
+        </div>
+      ) : null}
       {persistenceError === null ? null : (
         <div
           role="alert"
