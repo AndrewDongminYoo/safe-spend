@@ -94,3 +94,9 @@ Keep changes small, add tests for financial and date rules, and use Conventional
 
 - [Apps in Toss Developer Center](https://developers-apps-in-toss.toss.im/)
 - [Apps in Toss Developer Documentation MCP](https://developers-apps-in-toss.toss.im/~gitbook/mcp)
+
+## License
+
+Copyright (c) 2026 Dongmin Yu. All rights reserved.
+The source is public for reference only and is not open source.
+Using, copying, modifying, or redistributing it requires written permission from the copyright holder; see [`LICENSE`](LICENSE).
