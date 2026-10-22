@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TDSMobileAITProvider } from "@toss/tds-mobile-ait";
 import { RouterProvider } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeState } from "../domain/fixtures";
 import type { LoadResult } from "../storage/schema";
@@ -34,6 +34,14 @@ function renderAppAt(repository: StateRepository, path = "/") {
 }
 
 describe("startup routing", () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date("2026-09-22T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the loading state", () => {
     renderAppAt(makeRepository(new Promise<LoadResult>(() => undefined)));
     expect(screen.getByText("불러오고 있어요")).toBeInTheDocument();
