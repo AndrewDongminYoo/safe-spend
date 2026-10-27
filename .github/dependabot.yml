@@ -25,6 +25,13 @@ updates:
       day: monday
       timezone: Asia/Seoul
     open-pull-requests-limit: 3
+    ignore:
+      # typescript-eslint 8.72 supports TypeScript >=4.8.4 <6.1.0, and npm ci fails with ERESOLVE at TypeScript 7.0.2 (#10).
+      # Blocking 7 and later makes Dependabot offer 6.0.3; versions below 7 stay open, security updates included.
+      # Drop this entry when typescript-eslint supports TypeScript 7.
+      - dependency-name: typescript
+        versions:
+          - ">=7"
     groups:
       npm-minor-patch:
         patterns:
