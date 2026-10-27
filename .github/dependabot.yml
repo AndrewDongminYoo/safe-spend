@@ -33,6 +33,22 @@ updates:
       - dependency-name: typescript
         update-types:
           - version-update:semver-major
+      # @toss/tds-mobile 2.5.1, the latest release, allows React 18 or lower only (peer range ^16.8.3 || ^17 || ^18), and npm ci fails with ERESOLVE at React 19 (#14).
+      # The type packages follow the React major, so they stay on 18 with it.
+      # update-types limits this to version updates; security updates still open.
+      # Drop these four entries when @toss/tds-mobile allows React 19.
+      - dependency-name: react
+        update-types:
+          - version-update:semver-major
+      - dependency-name: react-dom
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@types/react"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@types/react-dom"
+        update-types:
+          - version-update:semver-major
     groups:
       npm-minor-patch:
         patterns:
