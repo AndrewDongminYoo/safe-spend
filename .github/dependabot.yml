@@ -27,7 +27,7 @@ updates:
     open-pull-requests-limit: 3
     ignore:
       # typescript-eslint 8.72 supports TypeScript >=4.8.4 <6.1.0, and npm ci fails with ERESOLVE at TypeScript 7.0.2 (#10).
-      # Blocking majors keeps TypeScript on 5.7.x until a manual TypeScript 6 pull request merges, because 5.7.3 to 6.0.3 is a major update too.
+      # TypeScript moved to 6.0 by hand (#19). Blocking majors keeps it on 6.x.
       # update-types limits this to version updates; security updates still open.
       # Drop this entry when typescript-eslint supports TypeScript 7.
       - dependency-name: typescript
@@ -47,6 +47,20 @@ updates:
         update-types:
           - version-update:semver-major
       - dependency-name: "@types/react-dom"
+        update-types:
+          - version-update:semver-major
+      # Major updates of the Node type package are manual: the account follows Node LTS and accepts
+      # types up to major 25, and Node 26 is not LTS yet (#16).
+      # update-types limits this to version updates; security updates still open.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+      # Vite stays on 6 until a planned Vite migration (#17), and @vitejs/plugin-react 6 needs Vite 8.
+      # update-types limits this to version updates; security updates still open.
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@vitejs/plugin-react"
         update-types:
           - version-update:semver-major
     groups:
