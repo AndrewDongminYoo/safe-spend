@@ -8,7 +8,7 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <TDSMobileAITProvider brandPrimaryColor={appConfig.brand.primaryColor}>
+    <TDSMobileAITProvider brandPrimaryColor={appConfig.brand?.primaryColor}>
       <App />
     </TDSMobileAITProvider>
   </StrictMode>,
