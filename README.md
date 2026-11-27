@@ -1,5 +1,10 @@
 # Safe Spend
 
+> [!IMPORTANT]
+> This project is withdrawn.
+> `써도돼` no longer ships on Apps in Toss, and this repository is kept read-only as a record.
+> See [the withdrawal note](docs/notes/2026-11-27-apps-in-toss-withdrawal.md).
+
 Safe Spend is the working repository for `써도돼`, an Apps in Toss miniapp that answers one practical question: how much of the money on hand is actually safe to spend before the next regular income arrives?
 
 The product is intentionally smaller than a household ledger.
